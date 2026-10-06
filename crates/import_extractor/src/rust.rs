@@ -7,8 +7,8 @@ use std::{
 };
 use syn::parse::Parser;
 use syn::{
-    visit::{self, Visit},
     Attribute, Item, UseTree,
+    visit::{self, Visit},
 };
 
 type Names = BTreeSet<String>;
@@ -22,18 +22,22 @@ fn test_only(attrs: &[Attribute]) -> bool {
                 .is_ok_and(|p| p.is_ident("test"))
     })
 }
-fn bindings(tree: &UseTree, names: &mut Names) {
+fn bindings(tree: &UseTree, names: &mut Names, parent: Option<&syn::Ident>) {
     match tree {
-        UseTree::Path(p) => bindings(&p.tree, names),
+        UseTree::Path(p) => bindings(&p.tree, names, Some(&p.ident)),
         UseTree::Name(n) => {
-            names.insert(ident(&n.ident));
+            names.insert(ident(if n.ident == "self" {
+                parent.unwrap_or(&n.ident)
+            } else {
+                &n.ident
+            }));
         }
         UseTree::Rename(n) => {
             names.insert(ident(&n.rename));
         }
         UseTree::Group(g) => {
             for t in &g.items {
-                bindings(t, names);
+                bindings(t, names, parent);
             }
         }
         UseTree::Glob(_) => {}
@@ -46,7 +50,7 @@ fn locals(items: &[Item]) -> Names {
             Item::Mod(m) => {
                 names.insert(ident(&m.ident));
             }
-            Item::Use(u) => bindings(&u.tree, &mut names),
+            Item::Use(u) => bindings(&u.tree, &mut names, None),
             Item::ExternCrate(e) => {
                 names.insert(ident(e.rename.as_ref().map_or(&e.ident, |(_, n)| n)));
             }
@@ -85,11 +89,17 @@ impl Extractor {
         self.sources.insert(file.to_string_lossy().into_owned());
         let text = fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?;
         let ast = syn::parse_file(&text).map_err(|e| format!("{}: {e}", file.display()))?;
-        self.items(&ast.items, module_dir, testing)?;
+        self.items(&ast.items, module_dir, file.parent().unwrap(), testing)?;
         self.active.remove(&key);
         Ok(())
     }
-    fn items(&mut self, items: &[Item], module_dir: &Path, testing: bool) -> Result<(), String> {
+    fn items(
+        &mut self,
+        items: &[Item],
+        module_dir: &Path,
+        path_dir: &Path,
+        testing: bool,
+    ) -> Result<(), String> {
         let local = locals(items);
         let modules: Names = items
             .iter()
@@ -107,7 +117,8 @@ impl Extractor {
                 self.has_tests |= testing;
                 let name = ident(&m.ident);
                 if let Some((_, items)) = &m.content {
-                    self.items(items, &module_dir.join(name), testing)?;
+                    let dir = module_dir.join(name);
+                    self.items(items, &dir, &dir, testing)?;
                 } else {
                     let explicit = m.attrs.iter().find_map(|a| {
                         if !a.path().is_ident("path") {
@@ -123,7 +134,7 @@ impl Extractor {
                         None
                     });
                     let file = if let Some(path) = &explicit {
-                        module_dir.join(path)
+                        path_dir.join(path)
                     } else {
                         let flat = module_dir.join(format!("{name}.rs"));
                         let nested = module_dir.join(&name).join("mod.rs");
@@ -134,7 +145,7 @@ impl Extractor {
                                 return Err(format!(
                                     "missing or ambiguous module {name} under {}",
                                     module_dir.display()
-                                ))
+                                ));
                             }
                         }
                     };
@@ -268,6 +279,15 @@ impl<'ast> Visit<'ast> for Imports<'_> {
         }
     }
     fn visit_attribute(&mut self, attr: &'ast Attribute) {
+        // Compiler and registered tool attributes are not crate references.
+        if attr.path().segments.first().is_some_and(|segment| {
+            matches!(
+                ident(&segment.ident).as_str(),
+                "diagnostic" | "clippy" | "rustfmt"
+            )
+        }) {
+            return;
+        }
         if attr.path().is_ident("derive") {
             if let Ok(paths) = attr.parse_args_with(
                 syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
@@ -421,6 +441,70 @@ mod tests {
         assert_eq!(result.imports, ["async", "serde", "tracing"]);
         assert_eq!(result.sources.len(), 4);
     }
+    #[test]
+    fn grouped_self_imports_bind_the_parent_module() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            use std::fs::{self, File};
+            use external::nested::{self, Value};
+            use other::{self as renamed, Thing};
+            fn run() {
+                fs::read("file");
+                nested::run();
+                renamed::run();
+                use std::io::{self, Write};
+                io::stdout();
+            }
+        "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["external", "other"]);
+    }
+
+    #[test]
+    fn compiler_attribute_namespaces_are_not_dependencies() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            #[diagnostic::on_unimplemented(message = "missing implementation")]
+            trait Contract {}
+            #[rustfmt::skip]
+            #[clippy::msrv = "1.80"]
+            #[tracing::instrument]
+            fn run() { diagnostic::report(); }
+        "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["diagnostic", "tracing"]);
+        let f = Fixture::new(&[(
+            "lib.rs",
+            "#[diagnostic::on_unimplemented(message = \"missing\")] trait Contract {}",
+        )]);
+        assert!(f.extract().unwrap().imports.is_empty());
+    }
+
+    #[test]
+    fn explicit_paths_in_flat_modules_are_relative_to_the_source_file() {
+        let f = Fixture::new(&[
+            ("lib.rs", "mod vault;"),
+            (
+                "vault.rs",
+                r#"
+                mod child;
+                #[cfg(test)] #[path = "vault.test.rs"] mod tests;
+                mod inline { #[path = "helper.rs"] mod helper; }
+            "#,
+            ),
+            ("vault/child.rs", "use runtime_dep::Value;"),
+            ("vault.test.rs", "use test_dep::Fixture;"),
+            ("vault/inline/helper.rs", "use inline_dep::Helper;"),
+        ]);
+        let result = f.extract().unwrap();
+        assert_eq!(result.imports, ["inline_dep", "runtime_dep"]);
+        assert_eq!(result.test_imports, ["test_dep"]);
+        assert!(result.has_tests);
+        assert_eq!(result.sources.len(), 5);
+    }
+
     #[test]
     fn errors_do_not_return_partial_graphs() {
         for text in [
