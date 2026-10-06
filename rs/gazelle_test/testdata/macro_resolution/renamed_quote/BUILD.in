@@ -1,0 +1,3 @@
+# gazelle:resolve rs actual @crates//:actual
+# gazelle:resolve rs quote @crates//:quote
+# gazelle:resolve rs syn @crates//:syn

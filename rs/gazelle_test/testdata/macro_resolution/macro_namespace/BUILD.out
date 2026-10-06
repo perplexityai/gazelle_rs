@@ -1,0 +1,13 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+# gazelle:resolve rs external @crates//:external
+
+rust_library(
+    name = "macro_namespace",
+    srcs = ["lib.rs"],
+    crate_name = "macro_namespace",
+    crate_root = "lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = ["@crates//:external"],
+)

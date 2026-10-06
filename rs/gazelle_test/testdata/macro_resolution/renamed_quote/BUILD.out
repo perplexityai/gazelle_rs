@@ -1,0 +1,19 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+# gazelle:resolve rs actual @crates//:actual
+# gazelle:resolve rs quote @crates//:quote
+# gazelle:resolve rs syn @crates//:syn
+
+rust_library(
+    name = "renamed_quote",
+    srcs = ["lib.rs"],
+    crate_name = "renamed_quote",
+    crate_root = "lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:actual",
+        "@crates//:quote",
+        "@crates//:syn",
+    ],
+)

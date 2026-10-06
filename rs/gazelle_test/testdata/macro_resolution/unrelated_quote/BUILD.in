@@ -1,0 +1,6 @@
+# gazelle:resolve rs imported_dep @crates//:imported_dep
+# gazelle:resolve rs parse_dep @crates//:parse_dep
+# gazelle:resolve rs parse_spanned_dep @crates//:parse_spanned_dep
+# gazelle:resolve rs qualified_dep @crates//:qualified_dep
+# gazelle:resolve rs spanned_dep @crates//:spanned_dep
+# gazelle:resolve rs unrelated @crates//:unrelated

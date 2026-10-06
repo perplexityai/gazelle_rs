@@ -7,8 +7,8 @@ use std::{
 };
 use syn::parse::Parser;
 use syn::{
-    Attribute, Item, UseTree,
     visit::{self, Visit},
+    Attribute, Item, UseTree,
 };
 
 type Names = BTreeSet<String>;
@@ -60,14 +60,92 @@ fn glob_paths(tree: &UseTree, path: &mut Vec<String>, out: &mut Vec<Vec<String>>
     }
 }
 
+fn is_quote_path(path: &[String]) -> bool {
+    matches!(path, [krate, name] if
+        (krate == "quote" && matches!(name.as_str(), "quote" | "quote_spanned")) ||
+        (krate == "syn" && matches!(name.as_str(), "parse_quote" | "parse_quote_spanned")))
+}
+
+fn quote_bindings(tree: &UseTree, path: &mut Vec<String>, names: &mut Names) {
+    match tree {
+        UseTree::Path(p) => {
+            path.push(ident(&p.ident));
+            quote_bindings(&p.tree, path, names);
+            path.pop();
+        }
+        UseTree::Group(g) => {
+            for tree in &g.items {
+                quote_bindings(tree, path, names);
+            }
+        }
+        UseTree::Name(n) => {
+            path.push(ident(&n.ident));
+            if is_quote_path(path) {
+                names.insert(ident(&n.ident));
+            }
+            path.pop();
+        }
+        UseTree::Rename(n) => {
+            path.push(ident(&n.ident));
+            if is_quote_path(path) {
+                names.insert(ident(&n.rename));
+            }
+            path.pop();
+        }
+        UseTree::Glob(_) => {}
+    }
+}
+
+fn local_macros(items: &[Item]) -> Names {
+    items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Macro(mac) => mac.ident.as_ref().map(ident),
+            _ => None,
+        })
+        .collect()
+}
+
+// Imported quote macros are scoped just like other item bindings. A local
+// declaration or a different import can shadow an inherited quote alias.
+fn scope_quote_macros(items: &[Item], names: &mut Names) {
+    for name in locals(items).into_iter().chain(local_macros(items)) {
+        names.remove(&name);
+    }
+    for item in items {
+        if let Item::Use(u) = item {
+            quote_bindings(&u.tree, &mut Vec::new(), names);
+        }
+    }
+}
+
+struct Scope {
+    names: Names,
+    quote_macros: Names,
+}
+
+fn type_bindings(tree: &UseTree, macros: &Names, names: &mut Names) {
+    match tree {
+        UseTree::Name(n) if macros.contains(&ident(&n.ident)) => {}
+        UseTree::Rename(n) if macros.contains(&ident(&n.ident)) => {}
+        UseTree::Group(g) => {
+            for tree in &g.items {
+                type_bindings(tree, macros, names);
+            }
+        }
+        _ => bindings(tree, names, None),
+    }
+}
+
 fn locals(items: &[Item]) -> Names {
     let mut names = Names::new();
+    let macros = local_macros(items);
     for item in items {
         match item {
             Item::Mod(m) => {
                 names.insert(ident(&m.ident));
             }
-            Item::Use(u) => bindings(&u.tree, &mut names, None),
+            Item::Use(u) => type_bindings(&u.tree, &macros, &mut names),
             Item::ExternCrate(e) => {
                 names.insert(ident(e.rename.as_ref().map_or(&e.ident, |(_, n)| n)));
             }
@@ -95,7 +173,7 @@ struct Extractor {
     test_imports: Names,
     has_tests: bool,
     active: Names,
-    scopes: Vec<Names>,
+    scopes: Vec<Scope>,
 }
 impl Extractor {
     fn file(&mut self, file: &Path, module_dir: &Path, testing: bool) -> Result<(), String> {
@@ -119,6 +197,7 @@ impl Extractor {
         testing: bool,
     ) -> Result<(), String> {
         let mut local = locals(items);
+        let mut quote_macros = Names::new();
         for item in items {
             if let Item::Use(u) = item {
                 let mut paths = Vec::new();
@@ -135,17 +214,22 @@ impl Extractor {
                         None
                     };
                     if let Some(scope) = scope {
-                        local.extend(scope.iter().cloned());
+                        local.extend(scope.names.iter().cloned());
+                        quote_macros.extend(scope.quote_macros.iter().cloned());
                     }
                 }
             }
         }
-        self.scopes.push(local.clone());
-        let definitions: Names = items
+        scope_quote_macros(items, &mut quote_macros);
+        self.scopes.push(Scope {
+            names: local.clone(),
+            quote_macros: quote_macros.clone(),
+        });
+        let macros = local_macros(items);
+        let modules: Names = items
             .iter()
             .filter_map(|item| match item {
                 Item::Mod(module) => Some(ident(&module.ident)),
-                Item::Macro(mac) => mac.ident.as_ref().map(ident),
                 _ => None,
             })
             .collect();
@@ -198,7 +282,9 @@ impl Extractor {
             } else {
                 let mut visitor = Imports {
                     local: local.clone(),
-                    definitions: definitions.clone(),
+                    modules: modules.clone(),
+                    macros: macros.clone(),
+                    quote_macros: quote_macros.clone(),
                     imports: &mut self.imports,
                     tests: &mut self.test_imports,
                     testing,
@@ -213,7 +299,9 @@ impl Extractor {
 }
 struct Imports<'a> {
     local: Names,
-    definitions: Names,
+    modules: Names,
+    macros: Names,
+    quote_macros: Names,
     imports: &'a mut Names,
     tests: &'a mut Names,
     testing: bool,
@@ -227,7 +315,7 @@ impl Imports<'_> {
         ) {
             return;
         }
-        if self.definitions.contains(&name) {
+        if self.modules.contains(&name) {
             return;
         }
         if !explicit && (self.local.contains(&name) || name.starts_with(char::is_uppercase)) {
@@ -271,8 +359,16 @@ impl Imports<'_> {
                     self.add(name, true);
                 }
             }
-            UseTree::Name(n) => self.add(ident(&n.ident), true),
-            UseTree::Rename(n) => self.add(ident(&n.ident), true),
+            UseTree::Name(n) => {
+                if absolute || !self.macros.contains(&ident(&n.ident)) {
+                    self.add(ident(&n.ident), true);
+                }
+            }
+            UseTree::Rename(n) => {
+                if absolute || !self.macros.contains(&ident(&n.ident)) {
+                    self.add(ident(&n.ident), true);
+                }
+            }
             UseTree::Group(g) => {
                 for t in &g.items {
                     self.use_tree(t, own_bindings, absolute);
@@ -307,12 +403,12 @@ impl<'ast> Visit<'ast> for Imports<'_> {
     fn visit_macro(&mut self, mac: &'ast syn::Macro) {
         self.visit_path(&mac.path);
         // Quoted Rust is output syntax, not code evaluated by this crate.
-        if mac.path.segments.last().is_some_and(|s| {
-            matches!(
-                s.ident.to_string().as_str(),
-                "quote" | "quote_spanned" | "parse_quote" | "parse_quote_spanned"
-            )
-        }) {
+        let path: Vec<String> = mac.path.segments.iter().map(|s| ident(&s.ident)).collect();
+        if is_quote_path(&path)
+            || (mac.path.leading_colon.is_none()
+                && path.len() == 1
+                && self.quote_macros.contains(&path[0]))
+        {
             return;
         }
         // Common Rust macros (assert_eq!, println!, vec!, etc.) take expression
@@ -323,7 +419,9 @@ impl<'ast> Visit<'ast> for Imports<'_> {
             for arg in &args {
                 let mut nested = Imports {
                     local: self.local.clone(),
-                    definitions: self.definitions.clone(),
+                    modules: self.modules.clone(),
+                    macros: self.macros.clone(),
+                    quote_macros: self.quote_macros.clone(),
                     imports: self.imports,
                     tests: self.tests,
                     testing: self.testing,
@@ -358,6 +456,8 @@ impl<'ast> Visit<'ast> for Imports<'_> {
     }
     fn visit_block(&mut self, block: &'ast syn::Block) {
         let previous = self.local.clone();
+        let previous_macros = self.macros.clone();
+        let previous_quotes = self.quote_macros.clone();
         let items: Vec<Item> = block
             .stmts
             .iter()
@@ -370,8 +470,12 @@ impl<'ast> Visit<'ast> for Imports<'_> {
             })
             .collect();
         self.local.extend(locals(&items));
+        self.macros.extend(local_macros(&items));
+        scope_quote_macros(&items, &mut self.quote_macros);
         visit::visit_block(self, block);
         self.local = previous;
+        self.macros = previous_macros;
+        self.quote_macros = previous_quotes;
     }
     fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
         let mut own_bindings = Names::new();
@@ -512,6 +616,93 @@ mod tests {
         "#,
         )]);
         assert_eq!(f.extract().unwrap().imports, ["actual", "quote", "syn"]);
+    }
+
+    #[test]
+    fn local_macros_do_not_shadow_external_crate_paths() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            macro_rules! external { () => {}; }
+            pub(crate) use external;
+            use external::Value;
+            fn run() { external::run(); }
+            "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["external"]);
+    }
+
+    #[test]
+    fn renamed_quote_macros_keep_output_paths_opaque() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            use quote::{quote as emit, quote_spanned as emit_spanned};
+            use syn::{parse_quote as parse, parse_quote_spanned as parse_spanned};
+            fn generate() {
+                let _ = emit!(output_only::Value);
+                let _ = parse!(another_output::Value);
+                let _ = emit_spanned!(span => output_only::Value);
+                let _ = parse_spanned!(span => another_output::Value);
+                { use quote::quote as inner; let _ = inner!(inner_output::Value); }
+                assert_eq!(actual::value(), 1);
+            }
+            "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["actual", "quote", "syn"]);
+    }
+
+    #[test]
+    fn quote_aliases_follow_scope_and_shadowing() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            use quote::quote as emit;
+            mod child {
+                use super::*;
+                fn generate() { let _ = emit!(output_only::Value); }
+            }
+            fn generate() {
+                {
+                    use unrelated::quote as emit;
+                    emit!(actual::value());
+                }
+                let _ = emit!(output_only::Value);
+            }
+            "#,
+        )]);
+        assert_eq!(
+            f.extract().unwrap().imports,
+            ["actual", "quote", "unrelated"]
+        );
+    }
+
+    #[test]
+    fn unrelated_quote_macros_still_visit_expression_arguments() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            use unrelated::quote;
+            fn run() {
+                unrelated::quote!(qualified_dep::value());
+                quote!(imported_dep::value());
+                unrelated::parse_quote!(parse_dep::value());
+                unrelated::quote_spanned!(spanned_dep::value());
+                unrelated::parse_quote_spanned!(parse_spanned_dep::value());
+            }
+            "#,
+        )]);
+        assert_eq!(
+            f.extract().unwrap().imports,
+            [
+                "imported_dep",
+                "parse_dep",
+                "parse_spanned_dep",
+                "qualified_dep",
+                "spanned_dep",
+                "unrelated",
+            ]
+        );
     }
 
     #[test]
