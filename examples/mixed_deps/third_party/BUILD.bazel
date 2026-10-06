@@ -1,0 +1,7 @@
+# gazelle:rust_extension disabled
+
+# This package only supplies the external dependency catalog to rules_rs.
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])

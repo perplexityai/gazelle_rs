@@ -26,11 +26,15 @@ jobs:
       - run: bazelisk test //...
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel }}
-      - name: Generate and compile manifest-free example
-        working-directory: examples/basic
+      - name: Generate and compile examples
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel }}
         run: |
-          bazelisk run //:gazelle
-          bazelisk run //:gazelle -- -mode=diff
-          bazelisk test //...
+          for example in basic mixed_deps cargo_metadata; do
+            (
+              cd "examples/$example"
+              bazelisk run //:gazelle
+              bazelisk run //:gazelle -- -mode=diff
+              bazelisk test //...
+            )
+          done

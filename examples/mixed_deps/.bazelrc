@@ -1,0 +1,7 @@
+common --enable_platform_specific_config
+common:linux --host_platform=@gazelle_rs//platforms:local_gnu
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+common --repo_env=BAZEL_NO_APPLE_CPP_TOOLCHAIN=1
+common --@llvm//config:experimental_stub_libgcc_s=True
+build:linux --linkopt=-no-pie
+test --test_output=errors

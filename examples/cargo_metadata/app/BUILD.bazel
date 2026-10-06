@@ -1,0 +1,29 @@
+load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_binary(
+    name = "report_cli",
+    srcs = ["src/main.rs"],
+    crate_name = "report_cli",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service:report_engine",
+        "@metadata_example_crates//:anyhow",
+    ],
+)
+
+rust_test(
+    name = "report_test",
+    srcs = ["tests/report.rs"],
+    crate_name = "report_test",
+    crate_root = "tests/report.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service:report_engine",
+        "@metadata_example_crates//:anyhow",
+        "@metadata_example_crates//:serde_json",
+    ],
+)

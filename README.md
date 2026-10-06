@@ -73,6 +73,17 @@ bazel test //...
 bazel run //app
 ```
 
+## More examples
+
+| Example | Internal graph | External dependencies |
+| --- | --- | --- |
+| [mixed_deps](examples/mixed_deps/README.md) | `app → service → model` and `app → presentation → model`; no internal Cargo manifests | `anyhow`, `serde_json`, `itoa`, supplied by a separate dependency catalog |
+| [cargo_metadata](examples/cargo_metadata/README.md) | `report_cli → report_engine → line_items`; Cargo names differ from directory names and internal dependencies are omitted | `anyhow`, `serde_json`, supplied by a Cargo workspace |
+
+Each example is a standalone Bazel workspace with checked-in lockfiles,
+external `gazelle:resolve` mappings, generated BUILD files, and tests. CI
+regenerates and compiles all examples and checks generation idempotency.
+
 ## Architecture
 
 ```text

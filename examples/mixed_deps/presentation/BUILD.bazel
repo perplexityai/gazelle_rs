@@ -1,0 +1,14 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "presentation",
+    srcs = ["src/lib.rs"],
+    crate_name = "presentation",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//model",
+        "@mixed_example_crates//:itoa",
+    ],
+)
