@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["crates/import_extractor"]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/perplexityai/gazelle_rs"
+
+[workspace.dependencies]
+syn = { version = "2", features = ["full", "visit"] }
+prost = "=0.13.1"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
