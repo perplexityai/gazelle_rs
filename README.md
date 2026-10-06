@@ -216,5 +216,5 @@ Release Please starts at `0.0.0`. Publishing requires the same organization
 setup as gazelle_py: `GH_RELEASE_TOKEN`, `BCR_PUBLISH_TOKEN`, a
 `perplexityai/bazel-central-registry` fork, and the publish-to-bcr app installed
 on that fork. No releases or registry submissions have been created by this
-setup. Confirm the OSS maintainer entry in `.bcr/metadata.template.json` before
+setup. Confirm the maintainer entries in `.bcr/metadata.template.json` before
 publishing.

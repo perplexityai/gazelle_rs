@@ -1,4 +1,7 @@
-# Keep registry submissions associated with the repository's OSS maintainer.
+# Configuration for the publish-to-bcr GitHub App.
+# https://github.com/bazel-contrib/publish-to-bcr#configuration
+
+# Pin the BCR releaser so submissions don't depend on whoever pushed the tag.
 fixedReleaser:
-  login: pplx-oss
-  email: ossmaintainers@perplexity.ai
+  login: longlho
+  email: holevietlong@gmail.com
