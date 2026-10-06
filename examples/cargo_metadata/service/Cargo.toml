@@ -1,0 +1,9 @@
+[package]
+name = "report-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = "1"
+# Deliberately no line-items dependency. Gazelle resolves its source import.

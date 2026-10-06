@@ -1,0 +1,11 @@
+load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
+
+rust_binary(
+    name = "app",
+    srcs = ["main.rs"],
+    crate_name = "app",
+    crate_root = "main.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = ["//api"],
+)

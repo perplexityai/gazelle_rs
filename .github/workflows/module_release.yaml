@@ -1,0 +1,58 @@
+name: module-release
+
+# Releases the `gazelle_rs` Bazel module to GitHub Releases and submits it
+# to the Bazel Central Registry.
+#
+# Tag scheme: `vX.Y.Z`.
+#
+# The release uses bazel-contrib's reusable workflows by tag. BCR validates
+# the workflow refs in the generated attestations, and bare SHAs fail SLSA
+# verification.
+#
+# Prerequisites for the BCR submission to succeed:
+#   1. A fork of github.com/bazelbuild/bazel-central-registry under the org
+#      (matches `registry_fork` below).
+#   2. The `bazel-contrib/publish-to-bcr` GitHub App installed on the fork.
+#   3. Repo secret `BCR_PUBLISH_TOKEN` — a classic PAT (fine-grained PATs
+#      cannot open PRs against public repos). See
+#      https://github.com/bazel-contrib/publish-to-bcr#a-note-on-release-automation
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.0). Must already exist.'
+        type: string
+        required: true
+
+permissions:
+  actions: read
+  attestations: write
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@v7.4.0
+    with:
+      release_files: gazelle_rs-*.tar.gz
+      prerelease: false
+      tag_name: ${{ inputs.tag || github.ref_name }}
+
+  publish-to-bcr:
+    needs: release
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@v1.4.2
+    with:
+      tag_name: ${{ inputs.tag || github.ref_name }}
+      registry_fork: perplexityai/bazel-central-registry
+      draft: false
+    permissions:
+      actions: read
+      attestations: write
+      contents: write
+      id-token: write
+    secrets:
+      publish_token: ${{ secrets.BCR_PUBLISH_TOKEN }}

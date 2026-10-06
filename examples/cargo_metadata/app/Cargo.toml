@@ -1,0 +1,12 @@
+[package]
+name = "report-cli"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = "1"
+# Deliberately no report-engine dependency.
+
+[dev-dependencies]
+serde_json = "1"

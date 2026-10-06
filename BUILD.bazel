@@ -1,0 +1,13 @@
+load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+# gazelle:rust_extension disabled
+
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = ["//rs"],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = ":gazelle_bin",
+)

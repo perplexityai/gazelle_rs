@@ -1,0 +1,11 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "line_items",
+    srcs = ["src/lib.rs"],
+    crate_name = "line_items",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = ["@metadata_example_crates//:serde_json"],
+)

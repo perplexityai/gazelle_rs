@@ -1,0 +1,10 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "internal_tools",
+    srcs = ["src/lib.rs"],
+    crate_name = "internal_tools",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+)

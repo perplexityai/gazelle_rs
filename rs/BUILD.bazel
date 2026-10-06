@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rs",
+    srcs = [
+        "generate.go",
+        "import_extractor.go",
+        "language.go",
+        "resolve.go",
+    ],
+    cdeps = ["//crates/import_extractor:import_extractor"],
+    cgo = True,
+    clinkopts = select({
+        "@platforms//os:linux": [
+            "-ldl",
+            "-Wl,--whole-archive",
+            "-lunwind",
+            "-Wl,--no-whole-archive",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/perplexityai/gazelle_rs/rs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rs/proto:import_extractor_go_proto",
+        "@com_github_bazelbuild_buildtools//build",
+        "@com_github_burntsushi_toml//:toml",
+        "@gazelle//config",
+        "@gazelle//label",
+        "@gazelle//language",
+        "@gazelle//repo",
+        "@gazelle//resolve",
+        "@gazelle//rule",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "rs_test",
+    srcs = ["generate_test.go"],
+    clinkopts = select({
+        "@platforms//os:linux": [
+            "-ldl",
+            "-Wl,--whole-archive",
+            "-lunwind",
+            "-Wl,--no-whole-archive",
+        ],
+        "//conditions:default": [],
+    }),
+    embed = [":rs"],
+    deps = [
+        "@gazelle//config",
+        "@gazelle//label",
+        "@gazelle//language",
+        "@gazelle//resolve",
+        "@gazelle//rule",
+    ],
+)

@@ -1,0 +1,11 @@
+module(name = "gazelle_rs_example")
+
+bazel_dep(name = "gazelle_rs", version = "0.0.0")
+local_path_override(
+    module_name = "gazelle_rs",
+    path = "../..",
+)
+
+bazel_dep(name = "gazelle", version = "0.51.3")
+bazel_dep(name = "rules_rs", version = "0.0.111")
+bazel_dep(name = "llvm", version = "0.8.18")

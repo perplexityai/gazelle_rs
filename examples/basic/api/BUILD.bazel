@@ -1,0 +1,16 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_library(
+    name = "api",
+    srcs = ["src/lib.rs"],
+    crate_name = "api",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+)
+
+rust_test(
+    name = "api_test",
+    crate = ":api",
+)

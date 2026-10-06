@@ -1,0 +1,13 @@
+syntax = "proto3";
+package gazelle_rs.import_extractor;
+option go_package = "github.com/perplexityai/gazelle_rs/rs/proto";
+
+message Request { repeated Crate crates = 1; }
+message Crate { string root = 1; }
+message Response { repeated CrateResult results = 1; string error = 2; }
+message CrateResult {
+  repeated string sources = 1;
+  repeated string imports = 2;
+  repeated string test_imports = 3;
+  bool has_tests = 4;
+}

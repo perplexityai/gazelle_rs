@@ -1,0 +1,16 @@
+[package]
+name = "mixed-example-dependencies"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Isolate the catalog from gazelle_rs's development workspace.
+[workspace]
+
+[lib]
+path = "empty.rs"
+
+[dependencies]
+anyhow = "1"
+serde_json = "1"
+itoa = "1"

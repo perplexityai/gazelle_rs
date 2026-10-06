@@ -1,0 +1,16 @@
+load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
+
+gazelle_binary(
+    name = "gazelle_bin",
+    languages = ["@gazelle_rs//rs"],
+)
+
+gazelle(
+    name = "gazelle",
+    gazelle = ":gazelle_bin",
+)
+
+# External crates are explicit; internal crates resolve through the rule index.
+# gazelle:resolve rs anyhow @mixed_example_crates//:anyhow
+# gazelle:resolve rs serde_json @mixed_example_crates//:serde_json
+# gazelle:resolve rs itoa @mixed_example_crates//:itoa
