@@ -1,0 +1,19 @@
+load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
+
+rust_binary(
+    name = "app",
+    srcs = ["main.rs"],
+    aliases = {
+        "@crates//:package-name-3.0.0": "library_name",  # keep this comment
+        "@crates//:serde-1.0.0": "old_serde",
+    },
+    crate_name = "app",
+    crate_root = "main.rs",
+    edition = "2021",
+    proc_macro_deps = ["@crates//:derive-macro-0.2.0"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:package-name-3.0.0",
+        "@crates//:serde-1.0.0",
+    ],
+)

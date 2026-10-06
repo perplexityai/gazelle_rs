@@ -26,7 +26,7 @@ func (*rustLang) Embeds(*rule.Rule, label.Label) []label.Label        { return n
 func (*rustLang) Kinds() map[string]rule.KindInfo {
 	out := map[string]rule.KindInfo{}
 	for _, kind := range []string{"rust_library", "rust_binary", "rust_test", "rust_proc_macro"} {
-		out[kind] = rule.KindInfo{NonEmptyAttrs: map[string]bool{"name": true}, MergeableAttrs: map[string]bool{"srcs": true}, ResolveAttrs: map[string]bool{"deps": true, "proc_macro_deps": true}}
+		out[kind] = rule.KindInfo{NonEmptyAttrs: map[string]bool{"name": true}, MergeableAttrs: map[string]bool{"srcs": true}, ResolveAttrs: map[string]bool{"deps": true, "proc_macro_deps": true, "aliases": true}}
 	}
 	return out
 }
@@ -44,6 +44,8 @@ type rustConfig struct {
 	visibility         []string
 	owner              string
 	owned              bool
+	kindMap            map[string]config.MappedKind
+	cargo              *cargoIndex
 }
 
 func getConfig(c *config.Config) *rustConfig {
@@ -53,7 +55,7 @@ func getConfig(c *config.Config) *rustConfig {
 	return &rustConfig{enabled: true, edition: "2021", visibility: []string{"//visibility:public"}}
 }
 func (*rustLang) KnownDirectives() []string {
-	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility"}
+	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata"}
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
@@ -75,9 +77,23 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				cfg.crateName = d.Value
 			case "rust_visibility":
 				cfg.visibility = strings.Fields(d.Value)
+			case "rust_cargo_metadata":
+				args := strings.Fields(d.Value)
+				cfg.cargo = nil
+				if len(args) != 2 {
+					log.Printf("gazelle_rs: %s: expected rust_cargo_metadata @repository path/to/metadata.json", rel)
+					continue
+				}
+				index, err := loadCargoIndex(args[0], filepath.Join(c.RepoRoot, args[1]))
+				if err != nil {
+					log.Printf("gazelle_rs: %s: %v", rel, err)
+					continue
+				}
+				cfg.cargo = index
 			}
 		}
 	}
+	scopeKindMappings(c, &cfg)
 	if !cfg.owned {
 		dir := filepath.Join(c.RepoRoot, filepath.FromSlash(rel))
 		for _, root := range []string{"lib.rs", "main.rs", "src/lib.rs", "src/main.rs"} {
@@ -98,6 +114,9 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 }
 func crateName(name string) string { return strings.ReplaceAll(name, "-", "_") }
 func baseKind(c *config.Config, kind string) string {
+	if original, ok := c.AliasMap[kind]; ok {
+		return original
+	}
 	for original, mapped := range c.KindMap {
 		if mapped.KindName == kind {
 			return original

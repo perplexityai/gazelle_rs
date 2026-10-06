@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "workspace_root": "/workspace",
+  "workspace_members": [
+    "app"
+  ],
+  "packages": [
+    {
+      "id": "app",
+      "name": "app",
+      "version": "0.1.0",
+      "manifest_path": "/workspace/app/Cargo.toml",
+      "targets": [
+        {
+          "name": "app",
+          "kind": [
+            "bin"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serde1",
+      "name": "serde",
+      "version": "1.0.0",
+      "targets": [
+        {
+          "name": "serde",
+          "kind": [
+            "lib"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serde2",
+      "name": "serde",
+      "version": "2.0.0",
+      "targets": [
+        {
+          "name": "serde",
+          "kind": [
+            "lib"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "macro",
+      "name": "derive-macro",
+      "version": "0.2.0",
+      "targets": [
+        {
+          "name": "derive_macro",
+          "kind": [
+            "proc-macro"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "different",
+      "name": "package-name",
+      "version": "3.0.0",
+      "targets": [
+        {
+          "name": "library_name",
+          "kind": [
+            "lib"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolve": {
+    "nodes": [
+      {
+        "id": "app",
+        "deps": [
+          {
+            "name": "old_serde",
+            "pkg": "serde1",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

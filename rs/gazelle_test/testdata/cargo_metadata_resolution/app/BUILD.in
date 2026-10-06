@@ -1,0 +1,11 @@
+load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
+
+rust_binary(
+    name = "app",
+    srcs = ["main.rs"],
+    aliases = {
+        "@crates//:package-name-3.0.0": "library_name",  # keep this comment
+    },
+    crate_root = "main.rs",
+    visibility = ["//visibility:public"],
+)

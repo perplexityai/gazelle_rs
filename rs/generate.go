@@ -237,6 +237,9 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		sort.Strings(srcs)
 		r := rule.NewRule(p.kind, p.name)
 		r.SetAttr("srcs", srcs)
+		if p.existing != nil && p.existing.Attr("aliases") != nil {
+			r.SetAttr("aliases", aliasValue{p.existing.Attr("aliases")})
+		}
 		r.SetAttr("crate_root", filepath.ToSlash(p.root))
 		r.SetAttr("edition", p.edition)
 		cn := crateName(p.name)

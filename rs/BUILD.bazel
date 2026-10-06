@@ -3,9 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "rs",
     srcs = [
+        "cargo.go",
         "generate.go",
         "import_extractor.go",
         "language.go",
+        "mappings.go",
         "resolve.go",
     ],
     cdeps = ["//crates/import_extractor:import_extractor"],
@@ -37,7 +39,11 @@ go_library(
 
 go_test(
     name = "rs_test",
-    srcs = ["generate_test.go"],
+    srcs = [
+        "cargo_test.go",
+        "generate_test.go",
+        "mappings_test.go",
+    ],
     clinkopts = select({
         "@platforms//os:linux": [
             "-ldl",

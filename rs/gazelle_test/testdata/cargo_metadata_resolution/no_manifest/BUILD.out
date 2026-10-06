@@ -1,0 +1,17 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "no_manifest",
+    srcs = ["lib.rs"],
+    aliases = {
+        "@crates//:serde-1.0.0": "old_serde",
+    },
+    crate_name = "no_manifest",
+    crate_root = "lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:package-name-3.0.0",
+        "@crates//:serde-1.0.0",
+    ],
+)

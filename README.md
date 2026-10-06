@@ -130,19 +130,21 @@ Resolution order:
 1. `# gazelle:resolve rs <crate> <label>` override.
 2. A unique indexed internal library or proc-macro crate, regardless of Cargo
    dependency declarations.
-3. An unresolved/ambiguous-import diagnostic. Existing dependency attributes
+3. A unique external crate from the configured Cargo metadata catalog.
+4. An unresolved/ambiguous-import diagnostic. Existing dependency attributes
    are left unchanged when any import cannot be resolved; no external labels
    are guessed. These diagnostics do not make Gazelle exit nonzero.
 
 Internal proc-macro rules are indexed separately so their imports land in
-`proc_macro_deps`. External crates need explicit overrides, for example:
+`proc_macro_deps`. External crates can use a Cargo metadata catalog (below) or explicit overrides, for example:
 
 ```starlark
 # gazelle:resolve rs serde @crates//:serde
 ```
 
-External procedural macro dependencies should be maintained explicitly with
-`# keep` (their rule kind cannot be inferred from a label override).
+Without Cargo metadata, external procedural macro dependencies should be
+maintained explicitly with `# keep`; a label override alone does not reveal
+their rule kind.
 
 ## Configuration
 
@@ -152,6 +154,7 @@ External procedural macro dependencies should be maintained explicitly with
 | `rust_edition` | `2021` | Edition used when the local manifest does not supply one; inherited. |
 | `rust_crate_name` | Package/directory name, with hyphens replaced by underscores | Override the default crate name in this package only. |
 | `rust_visibility` | `//visibility:public` | Space-separated labels for new targets; inherited. |
+| `rust_cargo_metadata` | Unset | `@repository workspace-relative/path.json` for a rules_rs Cargo metadata catalog; inherited. |
 
 Gazelle's `resolve` and `map_kind` directives work normally. For rules_rust or
 custom wrappers, map each desired kind, for example:
@@ -161,6 +164,61 @@ custom wrappers, map each desired kind, for example:
 # gazelle:map_kind rust_binary rust_binary @rules_rust//rust:defs.bzl
 # gazelle:map_kind rust_test rust_test @rules_rust//rust:defs.bzl
 ```
+
+### Root mappings with package opt-in
+
+Mappings can live at the root alongside `# gazelle:rust_extension disabled`.
+Add `# gazelle:rust_extension enabled` to each package you want to generate.
+Disabled packages retain their existing rule kinds, loads, and attributes; mapped
+libraries and proc macros remain available to the dependency index. Mappings are
+inherited through disabled directories and can be overridden in a child BUILD.
+Other languages' mappings are unaffected.
+
+Opting in still applies the configured mappings to existing Rust rules in that
+package. A wrapper may add tests or dependencies compared with a raw rule, so
+review the expanded Bazel targets when migrating.
+
+### External crates from Cargo metadata
+
+For a `rules_rs` crate hub, one workspace-level Cargo metadata snapshot replaces
+per-import `resolve` directives. Generate it from the same central Cargo manifest,
+lockfile, and feature selection used by `crate.from_cargo`:
+
+```sh
+cargo metadata --manifest-path third_party/Cargo.toml --locked --format-version=1 > third_party/cargo-metadata.json
+```
+
+Configure the hub's apparent repository name and the workspace-relative JSON path:
+
+```starlark
+# gazelle:rust_cargo_metadata @crates third_party/cargo-metadata.json
+```
+
+The plugin reads the file; it never invokes Cargo, rustc, or Bazel to resolve an
+import. Regenerate the snapshot when the central dependency catalog changes.
+Do not use `--no-deps`: external library names and proc-macro target kinds are
+absent from that output. `Cargo.lock` alone also lacks those details.
+
+External imports resolve to the hub's versioned aliases, for example
+`serde_json` to `@crates//:serde_json-1.0.150`. Package names that differ from their
+library name use the actual Cargo library target name. Proc-macro libraries go
+into `proc_macro_deps`, and renamed dependencies populate `aliases`, preserving
+existing aliases and comments. This assumes the `rules_rs` convention
+`@repository//:<package>-<version>`; custom label layouts still need explicit
+`resolve` directives.
+
+Resolution prefers explicit overrides, then first-party libraries, then Cargo
+metadata. A workspace package's resolved normal/dev dependency edges can select
+a version or a renamed import. Otherwise, the catalog resolves only unique
+library names or unique dependency aliases. Thus new and migrated packages need
+no per-package Cargo manifest. Multiple matching versions remain ambiguous:
+provide an explicit versioned override instead of relying on a highest-version
+heuristic. Two different sources with the same package name and version are
+rejected because they would map to the same Bazel label.
+
+The snapshot does not generate external repositories, enable features, or infer
+platform selects. Preserve computed dependencies and validate the resulting
+configured targets against the existing build before removing Cargo manifests.
 
 ## Scope
 
