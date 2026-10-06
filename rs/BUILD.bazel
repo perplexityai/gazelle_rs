@@ -4,6 +4,7 @@ go_library(
     name = "rs",
     srcs = [
         "cargo.go",
+        "diagnostic.go",
         "generate.go",
         "import_extractor.go",
         "language.go",

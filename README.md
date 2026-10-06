@@ -242,6 +242,14 @@ The snapshot does not generate external repositories, enable features, or infer
 platform selects. Preserve computed dependencies and validate the resulting
 configured targets against the existing build before removing Cargo manifests.
 
+## Strict diagnostics
+
+Use `bazel run //:gazelle -- -strict` to fail on invalid configuration,
+unreadable or unparseable crate sources, and unresolved or ambiguous imports.
+Without strict mode, Gazelle reports these diagnostics and preserves existing
+dependencies when inference is incomplete. Strict mode does not detect imports
+hidden by arbitrary macro expansion or validate configurations it cannot model.
+
 ## Scope
 
 This is source-level dependency inference, not Cargo or rustc execution. It does

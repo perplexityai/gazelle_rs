@@ -14,6 +14,7 @@ package gazelle_test_test
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -123,5 +124,55 @@ func TestFixtures(t *testing.T) {
 	}
 	if !any {
 		t.Fatalf("no fixture directories under %q", testdataRoot)
+	}
+}
+
+func TestStrictDiagnostics(t *testing.T) {
+	gazelleBin, err := runfiles.Rlocation(*gazelleBinaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, directive, source, diagnostic string
+	}{
+		{"unresolved", "", "pub use missing_crate::Value;", "unresolved crate"},
+		{"parse", "", "pub fn broken( {", "leaving target unchanged"},
+		{"configuration", "# gazelle:rust_edition invalid\n", "pub fn valid() {}", "invalid Rust edition"},
+	} {
+		for _, strict := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/strict=%v", tc.name, strict), func(t *testing.T) {
+				root := t.TempDir()
+				build := tc.directive + `load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "sample",
+    srcs = ["lib.rs"],
+    crate_root = "lib.rs",
+    deps = ["//existing:dependency"],
+)
+`
+				for name, contents := range map[string]string{"MODULE.bazel": "", "lib.rs": tc.source, "BUILD.bazel": build} {
+					if err := os.WriteFile(filepath.Join(root, name), []byte(contents), 0644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				cmd := exec.Command(gazelleBin, "-repo_root="+root, fmt.Sprintf("-strict=%v", strict), root)
+				cmd.Dir = root
+				output, err := cmd.CombinedOutput()
+				if (err != nil) != strict || !strings.Contains(string(output), tc.diagnostic) {
+					t.Fatalf("exit: %v; output: %s", err, output)
+				}
+				got, err := os.ReadFile(filepath.Join(root, "BUILD.bazel"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strict && string(got) != build {
+					t.Fatalf("strict failure modified BUILD: %s", got)
+				}
+				if tc.name != "configuration" && !strings.Contains(string(got), "//existing:dependency") {
+					t.Fatalf("incomplete inference removed existing dependency: %s", got)
+				}
+			})
+		}
 	}
 }

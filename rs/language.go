@@ -3,7 +3,6 @@ package rs
 
 import (
 	"flag"
-	"log"
 	"path"
 	"path/filepath"
 	"strings"
@@ -77,7 +76,7 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				case "false":
 					cfg.generateUnitTests = false
 				default:
-					log.Printf("%s: invalid rust_generate_unit_tests value %q", rel, d.Value)
+					diagnostic(c, "%s: invalid rust_generate_unit_tests value %q", rel, d.Value)
 				}
 			case "rust_extension":
 				cfg.enabled = d.Value != "disabled" && d.Value != "false"
@@ -86,7 +85,7 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				case "2015", "2018", "2021", "2024":
 					cfg.edition = d.Value
 				default:
-					log.Printf("%s: invalid Rust edition %q", rel, d.Value)
+					diagnostic(c, "%s: invalid Rust edition %q", rel, d.Value)
 				}
 			case "rust_crate_name":
 				cfg.crateName = d.Value
@@ -96,12 +95,12 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				args := strings.Fields(d.Value)
 				cfg.cargo = nil
 				if len(args) != 2 {
-					log.Printf("gazelle_rs: %s: expected rust_cargo_metadata @repository path/to/metadata.json", rel)
+					diagnostic(c, "gazelle_rs: %s: expected rust_cargo_metadata @repository path/to/metadata.json", rel)
 					continue
 				}
 				index, err := loadCargoIndex(args[0], filepath.Join(c.RepoRoot, args[1]))
 				if err != nil {
-					log.Printf("gazelle_rs: %s: %v", rel, err)
+					diagnostic(c, "gazelle_rs: %s: %v", rel, err)
 					continue
 				}
 				cfg.cargo = index
