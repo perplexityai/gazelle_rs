@@ -1,0 +1,2 @@
+gazelle: gazelle_rs: @preserved_dependencies//unresolved:lib: unresolved crate "unknown"; add # gazelle:resolve rs unknown <label>
+gazelle: gazelle_rs: @preserved_dependencies//unresolved:lib_custom_test: unresolved crate "unknown_test"; add # gazelle:resolve rs unknown_test <label>

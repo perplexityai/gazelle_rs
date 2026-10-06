@@ -1,0 +1,21 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_library(
+    name = "lib",
+    srcs = ["lib.rs"],
+    aliases = {"//old:dependency": "old_alias"},
+    crate_name = "lib",
+    crate_root = "lib.rs",
+    edition = "2021",
+    proc_macro_deps = ["//old:derive"],
+    deps = select({"//conditions:default": ["//old:dependency"]}),
+)
+
+rust_test(
+    name = "lib_custom_test",
+    aliases = {"//old:dependency": "old_alias"},
+    crate = ":lib",
+    proc_macro_deps = ["//old:test_derive"],
+    deps = select({"//conditions:default": ["//old:dependency"]}),
+)

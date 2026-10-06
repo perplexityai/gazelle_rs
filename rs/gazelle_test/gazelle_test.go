@@ -12,6 +12,7 @@
 package gazelle_test_test
 
 import (
+	"bytes"
 	"flag"
 	"io/fs"
 	"os"
@@ -109,8 +110,14 @@ func TestFixtures(t *testing.T) {
 			}
 			cmd := exec.Command(gazelleBin, "-repo_root="+root, "-mode=diff", root)
 			cmd.Dir = root
-			if output, err := cmd.CombinedOutput(); err != nil || len(output) > 0 {
-				t.Fatalf("second run: %v\n%s", err, output)
+			expectedStderr, err := os.ReadFile(filepath.Join(fixture, "expectedStderr.txt"))
+			if err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			if output, err := cmd.Output(); err != nil || len(output) > 0 || stderr.String() != string(expectedStderr) {
+				t.Fatalf("second run: %v\nstdout: %s\nstderr: %s", err, output, stderr.String())
 			}
 		})
 	}

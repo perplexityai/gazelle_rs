@@ -4,6 +4,7 @@ go 1.24.12
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+ github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/bazelbuild/bazel-gazelle v0.51.3
 	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
 	github.com/bazelbuild/rules_go v0.62.0

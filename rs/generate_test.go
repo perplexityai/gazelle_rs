@@ -164,3 +164,153 @@ func TestExistingRulesAndFailedGraphs(t *testing.T) {
 		})
 	}
 }
+
+func TestExistingUnitTestsPreventDuplicateDefaults(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"lib.rs", "other.rs"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("#[cfg(test)] mod tests { #[test] fn run() { test_support::check(); } }"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file, err := rule.LoadData(filepath.Join(dir, "BUILD.bazel"), "", []byte(`
+rust_library(name = "lib", crate_root = "lib.rs", srcs = ["lib.rs"])
+rust_library(name = "other", crate_root = "other.rs", srcs = ["other.rs"])
+rust_test(name = "custom_unit", crate = ":lib")
+rust_test(name = "custom_feature", crate = ":lib", crate_features = ["feature"])
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := config.New()
+	c.RepoRoot = dir
+	l := NewLanguage()
+	l.Configure(c, "", file)
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+	tests := map[string]string{}
+	for i, r := range result.Gen {
+		if r.Kind() == "rust_test" {
+			tests[r.Name()] = r.AttrString("crate")
+			if got := result.Imports[i].(importData).names; !reflect.DeepEqual(got, []string{"test_support"}) {
+				t.Fatalf("%s imports = %v", r.Name(), got)
+			}
+		}
+	}
+	want := map[string]string{"custom_unit": ":lib", "custom_feature": ":lib", "other_test": ":other"}
+	if !reflect.DeepEqual(tests, want) {
+		t.Fatalf("tests = %v, want %v", tests, want)
+	}
+	file.Directives = append(file.Directives, rule.Directive{Key: "rust_generate_unit_tests", Value: "false"})
+	l.Configure(c, "", file)
+	result = l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+	tests = map[string]string{}
+	for _, r := range result.Gen {
+		if r.Kind() == "rust_test" {
+			tests[r.Name()] = r.AttrString("crate")
+		}
+	}
+	delete(want, "other_test")
+	if !reflect.DeepEqual(tests, want) {
+		t.Fatalf("explicit tests = %v, want %v", tests, want)
+	}
+}
+
+func TestNestedBuildCanOwnAnIndependentCrate(t *testing.T) {
+	root := t.TempDir()
+	for _, rel := range []string{"", "models"} {
+		dir := filepath.Join(root, rel, "src")
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "lib.rs"), []byte("pub fn run() {}"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l := NewLanguage()
+	parent := config.New()
+	parent.RepoRoot = root
+	l.Configure(parent, "", nil)
+	child := parent.Clone()
+	file, err := rule.LoadData(filepath.Join(root, "models/BUILD.bazel"), "models", []byte(`rust_library(name = "models", crate_root = "src/lib.rs", srcs = ["src/lib.rs"])`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Configure(child, "models", file)
+	got := l.GenerateRules(language.GenerateArgs{Config: child, Dir: filepath.Join(root, "models"), Rel: "models", File: file})
+	if len(got.Gen) != 1 || got.Gen[0].Name() != "models" {
+		t.Fatalf("nested crate was suppressed: %v", got.Gen)
+	}
+	if getConfig(parent).owner != "" || getConfig(child).owner != "models" {
+		t.Fatal("child ownership leaked into its parent")
+	}
+}
+
+func TestExcludedCrateRoots(t *testing.T) {
+	root := t.TempDir()
+	for _, file := range []string{"pkg/src/lib.rs", "pkg/src/bin/tool.rs", "pkg/tests/privileged.rs", "pkg/tests/keep.rs"} {
+		full := filepath.Join(root, file)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("pub fn run() {}"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := config.New()
+	c.RepoRoot = root
+	l := NewLanguage()
+	parent, err := rule.LoadData(filepath.Join(root, "BUILD.bazel"), "", []byte("# gazelle:exclude pkg/src/bin\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Configure(c, "", parent)
+	child, err := rule.LoadData(filepath.Join(root, "pkg/BUILD.bazel"), "pkg", []byte("# gazelle:exclude tests/priv*.rs\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Configure(c, "pkg", child)
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: filepath.Join(root, "pkg"), Rel: "pkg", File: child})
+	var roots []string
+	for _, r := range result.Gen {
+		roots = append(roots, r.AttrString("crate_root"))
+	}
+	if !reflect.DeepEqual(roots, []string{"src/lib.rs", "tests/keep.rs"}) {
+		t.Fatalf("roots=%v", roots)
+	}
+}
+
+func TestResolutionRetainsExplicitCrateVariant(t *testing.T) {
+	c := config.New()
+	c.RepoRoot = t.TempDir()
+	l := NewLanguage()
+	rc := &resolve.Configurer{}
+	rc.RegisterFlags(nil, "", c)
+	l.Configure(c, "", nil)
+	ix := resolve.NewRuleIndex(func(*rule.Rule, string) resolve.Resolver { return l })
+	file := rule.EmptyFile(filepath.Join(c.RepoRoot, "BUILD.bazel"), "")
+	for _, name := range []string{"api", "api_minimal"} {
+		r := rule.NewRule("rust_library", name)
+		r.SetAttr("crate_name", "api")
+		ix.AddRule(c, r, file)
+	}
+	ix.Finish()
+	for _, attr := range []string{"deps", "crate"} {
+		r := rule.NewRule("rust_test", "consumer")
+		if attr == "deps" {
+			r.SetAttr(attr, []string{":api_minimal"})
+		} else {
+			r.SetAttr(attr, ":api_minimal")
+		}
+		l.Resolve(c, ix, nil, r, importData{names: []string{"api"}}, label.New("", "", "consumer"))
+		if got := r.AttrStrings("deps"); !reflect.DeepEqual(got, []string{":api_minimal"}) {
+			t.Fatalf("%s: deps=%v", attr, got)
+		}
+	}
+	// Multiple explicit candidates remain ambiguous and must preserve unrelated deps.
+	r := rule.NewRule("rust_test", "ambiguous")
+	want := []string{":api", ":api_minimal", ":retained"}
+	r.SetAttr("deps", want)
+	l.Resolve(c, ix, nil, r, importData{names: []string{"api"}}, label.New("", "", "ambiguous"))
+	if got := r.AttrStrings("deps"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ambiguous deps=%v", got)
+	}
+}

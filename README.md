@@ -150,11 +150,14 @@ their rule kind.
 
 | Directive | Default | Meaning |
 | --- | --- | --- |
+| `rust_generate_unit_tests` | `true` | Set `false` to suppress new implicit unit-test targets; existing explicit tests are still updated. Inherited. |
 | `rust_extension` | `enabled` | `disabled` skips generation; inherited. |
 | `rust_edition` | `2021` | Edition used when the local manifest does not supply one; inherited. |
 | `rust_crate_name` | Package/directory name, with hyphens replaced by underscores | Override the default crate name in this package only. |
 | `rust_visibility` | `//visibility:public` | Space-separated labels for new targets; inherited. |
 | `rust_cargo_metadata` | Unset | `@repository workspace-relative/path.json` for a rules_rs Cargo metadata catalog; inherited. |
+
+Gazelle's standard `exclude` directive also applies to crate-root discovery, including inherited directory exclusions and glob patterns. It leaves existing excluded rules untouched; source files reached through another crate's module graph remain part of that crate.
 
 Gazelle's `resolve` and `map_kind` directives work normally. For rules_rust or
 custom wrappers, map each desired kind, for example:

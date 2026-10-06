@@ -59,6 +59,32 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 				dep, isMacro, externalName = candidates[0].label, candidates[0].macro, candidates[0].name
 			}
 			if len(hits) > 1 {
+				selected := -1
+				existing := append(r.AttrStrings("deps"), r.AttrStrings("proc_macro_deps")...)
+				if crate := r.AttrString("crate"); crate != "" {
+					existing = append(existing, crate)
+				}
+				for i, hit := range hits {
+					for _, value := range existing {
+						old, err := label.Parse(value)
+						if err == nil && old.Abs(from.Repo, from.Pkg).Equal(hit.Label) {
+							if selected >= 0 && selected != i {
+								selected = -2
+								break
+							}
+							selected = i
+							break
+						}
+					}
+					if selected == -2 {
+						break
+					}
+				}
+				if selected >= 0 {
+					hits = hits[selected : selected+1]
+				}
+			}
+			if len(hits) > 1 {
 				unresolved = true
 				log.Printf("gazelle_rs: %s: ambiguous crate %q; add # gazelle:resolve rs %s <label>", from.String(), name, name)
 				continue

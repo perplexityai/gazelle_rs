@@ -4,6 +4,7 @@ package rs
 import (
 	"flag"
 	"log"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -40,8 +41,10 @@ func (*rustLang) Loads() []rule.LoadInfo {
 
 type rustConfig struct {
 	enabled            bool
+	generateUnitTests  bool
 	edition, crateName string
 	visibility         []string
+	excludes           []string
 	owner              string
 	owned              bool
 	kindMap            map[string]config.MappedKind
@@ -52,18 +55,30 @@ func getConfig(c *config.Config) *rustConfig {
 	if v, ok := c.Exts[languageName].(*rustConfig); ok {
 		return v
 	}
-	return &rustConfig{enabled: true, edition: "2021", visibility: []string{"//visibility:public"}}
+	return &rustConfig{enabled: true, generateUnitTests: true, edition: "2021", visibility: []string{"//visibility:public"}}
 }
 func (*rustLang) KnownDirectives() []string {
-	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata"}
+	return []string{"rust_extension", "rust_generate_unit_tests", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata"}
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
+	cfg.excludes = append([]string(nil), cfg.excludes...)
 	// Crate names apply only to this package; edition and visibility inherit.
 	cfg.crateName = ""
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
+			case "exclude":
+				cfg.excludes = append(cfg.excludes, path.Join(rel, d.Value))
+			case "rust_generate_unit_tests":
+				switch d.Value {
+				case "true":
+					cfg.generateUnitTests = true
+				case "false":
+					cfg.generateUnitTests = false
+				default:
+					log.Printf("%s: invalid rust_generate_unit_tests value %q", rel, d.Value)
+				}
 			case "rust_extension":
 				cfg.enabled = d.Value != "disabled" && d.Value != "false"
 			case "rust_edition":
@@ -94,6 +109,16 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 		}
 	}
 	scopeKindMappings(c, &cfg)
+	// A nested BUILD can declare an independent crate even under an existing
+	// crate's directory. Ordinary source subdirectories still inherit ownership.
+	if cfg.owned && cfg.owner != rel && f != nil {
+		for _, r := range f.Rules {
+			switch baseKind(c, r.Kind()) {
+			case "rust_library", "rust_binary", "rust_proc_macro":
+				cfg.owned = false
+			}
+		}
+	}
 	if !cfg.owned {
 		dir := filepath.Join(c.RepoRoot, filepath.FromSlash(rel))
 		for _, root := range []string{"lib.rs", "main.rs", "src/lib.rs", "src/main.rs"} {
