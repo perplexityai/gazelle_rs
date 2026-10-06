@@ -1,0 +1,4 @@
+# Keep registry submissions associated with the repository's OSS maintainer.
+fixedReleaser:
+  login: pplx-oss
+  email: ossmaintainers@perplexity.ai

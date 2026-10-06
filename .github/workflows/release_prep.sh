@@ -30,8 +30,7 @@ git archive --format=tar --prefix="${PREFIX}/" "${TAG}" | gzip -9 > "${ARCHIVE}"
 # Subresource Integrity (SRI): "sha256-<base64(sha256(archive))>". This is what
 # bazel_dep's source.json wants, and what publish-to-bcr will fill in for us —
 # we compute it here too so the release notes stay self-contained.
-SHA256_HEX=$(shasum -a 256 "${ARCHIVE}" | awk '{print $1}')
-SHA256_B64=$(printf '%s' "${SHA256_HEX}" | xxd -r -p | base64)
+SHA256_B64=$(openssl dgst -sha256 -binary "${ARCHIVE}" | openssl base64 -A)
 INTEGRITY="sha256-${SHA256_B64}"
 
 cat <<EOF
