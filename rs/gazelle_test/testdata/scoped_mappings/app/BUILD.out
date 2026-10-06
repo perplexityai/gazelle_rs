@@ -1,0 +1,14 @@
+load("//:rules.bzl", "custom_binary")
+
+# gazelle:lang go,rs
+# gazelle:resolve rs api //disabled:api
+
+custom_binary(
+    name = "app",
+    srcs = ["src/main.rs"],
+    crate_name = "app",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = ["//disabled:api"],
+)

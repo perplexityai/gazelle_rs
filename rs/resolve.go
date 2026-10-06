@@ -9,6 +9,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazelbuild/buildtools/build"
 )
 
 func (*rustLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
@@ -33,28 +34,70 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 	}
 	deps, macros := map[string]bool{}, map[string]bool{}
 	unresolved := false
+	cargo := getConfig(c).cargo
+	aliases, editableAliases := crateAliases(r)
+	aliasesChanged := false
+	importNames := make(map[string]string)
 	for _, name := range data.names {
 		spec := resolve.ImportSpec{Lang: languageName, Imp: name}
 		dep, overridden := resolve.FindRuleWithOverride(c, spec, languageName)
+		isMacro := false
+		externalName := ""
 		if !overridden {
 			hits := ix.FindRulesByImportWithConfig(c, spec, languageName)
 			if len(hits) == 0 {
-				unresolved = true
-				log.Printf("gazelle_rs: %s: unresolved crate %q; add # gazelle:resolve rs %s <label>", from.String(), name, name)
-				continue
+				candidates := cargo.candidates(from.Pkg, name)
+				if len(candidates) != 1 {
+					unresolved = true
+					reason := "unresolved"
+					if len(candidates) > 1 {
+						reason = "ambiguous external"
+					}
+					log.Printf("gazelle_rs: %s: %s crate %q; add # gazelle:resolve rs %s <label>", from.String(), reason, name, name)
+					continue
+				}
+				dep, isMacro, externalName = candidates[0].label, candidates[0].macro, candidates[0].name
 			}
 			if len(hits) > 1 {
 				unresolved = true
 				log.Printf("gazelle_rs: %s: ambiguous crate %q; add # gazelle:resolve rs %s <label>", from.String(), name, name)
 				continue
 			}
-			dep = hits[0].Label
+			if len(hits) == 1 {
+				dep = hits[0].Label
+			}
 		}
 		if dep.Equal(from) {
 			continue
 		}
 		value := dep.Rel(from.Repo, from.Pkg).String()
-		isMacro := false
+		if cargo != nil {
+			if external, ok := cargo.byLabel[dep.String()]; ok {
+				isMacro, externalName = external.macro, external.name
+			}
+		}
+		if externalName != "" {
+			if previous, ok := importNames[value]; ok && previous != name {
+				unresolved = true
+				log.Printf("gazelle_rs: %s: crate %s imported as both %s and %s; preserve explicit aliases", from.String(), value, previous, name)
+				continue
+			}
+			importNames[value] = name
+			if aliases[value] != "" && aliases[value] != name {
+				unresolved = true
+				log.Printf("gazelle_rs: %s: alias for %s conflicts with import %s; preserve explicit aliases", from.String(), value, name)
+				continue
+			}
+			if externalName != name {
+				if !editableAliases {
+					unresolved = true
+					log.Printf("gazelle_rs: %s: cannot add alias %s for %s; preserve explicit aliases", from.String(), name, value)
+					continue
+				}
+				aliases[value] = name
+				aliasesChanged = true
+			}
+		}
 		for _, hit := range ix.FindRulesByImportWithConfig(c, resolve.ImportSpec{Lang: languageName, Imp: "proc-macro:" + name}, languageName) {
 			if hit.Label.Equal(dep) {
 				isMacro = true
@@ -70,6 +113,9 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 	if unresolved {
 		return
 	}
+	if aliasesChanged {
+		r.SetAttr("aliases", aliasValue{rule.ExprFromValue(aliases)})
+	}
 	for attr, values := range map[string]map[string]bool{"deps": deps, "proc_macro_deps": macros} {
 		var list []string
 		for value := range values {
@@ -82,4 +128,60 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 			r.DelAttr(attr)
 		}
 	}
+}
+
+func crateAliases(r *rule.Rule) (map[string]string, bool) {
+	aliases := make(map[string]string)
+	if r.Attr("aliases") == nil {
+		return aliases, true
+	}
+	dict, ok := r.Attr("aliases").(*build.DictExpr)
+	if !ok {
+		return aliases, false
+	}
+	for _, entry := range dict.List {
+		key, keyOK := entry.Key.(*build.StringExpr)
+		value, valueOK := entry.Value.(*build.StringExpr)
+		if !keyOK || !valueOK {
+			return aliases, false
+		}
+		aliases[key.Value] = value.Value
+	}
+	return aliases, true
+}
+
+// Gazelle's default dictionary merger handles select lists, not label-to-name
+// dictionaries. Preserve handwritten aliases and their comments when adding keys.
+type aliasValue struct{ expr build.Expr }
+
+func (v aliasValue) BzlExpr() build.Expr { return v.expr }
+func (v aliasValue) Merge(other build.Expr) build.Expr {
+	if other == nil {
+		return v.expr
+	}
+	src, srcOK := v.expr.(*build.DictExpr)
+	dst, dstOK := other.(*build.DictExpr)
+	if !srcOK || !dstOK {
+		return other
+	}
+	merged := *dst
+	merged.List = append([]*build.KeyValueExpr{}, dst.List...)
+	keys := make(map[string]bool)
+	for _, entry := range dst.List {
+		key, ok := entry.Key.(*build.StringExpr)
+		if !ok {
+			return other
+		}
+		keys[key.Value] = true
+	}
+	for _, entry := range src.List {
+		key, ok := entry.Key.(*build.StringExpr)
+		if !ok {
+			return other
+		}
+		if !keys[key.Value] {
+			merged.List = append(merged.List, entry)
+		}
+	}
+	return &merged
 }

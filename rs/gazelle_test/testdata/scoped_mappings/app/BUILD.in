@@ -1,0 +1,2 @@
+# gazelle:lang go,rs
+# gazelle:resolve rs api //disabled:api

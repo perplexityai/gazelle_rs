@@ -1,0 +1,12 @@
+load("//:rules.bzl", "custom_library")
+
+# gazelle:lang go,rs
+
+custom_library(
+    name = "again",
+    srcs = ["lib.rs"],
+    crate_name = "again",
+    crate_root = "lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+)

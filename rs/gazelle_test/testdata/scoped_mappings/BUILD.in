@@ -1,0 +1,4 @@
+# gazelle:lang go
+# gazelle:map_kind rust_library custom_library //:rules.bzl
+# gazelle:map_kind rust_binary custom_binary //:rules.bzl
+# gazelle:map_kind rust_test custom_test //:rules.bzl
