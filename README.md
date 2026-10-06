@@ -175,8 +175,10 @@ crate name but not regenerated. Workspace-inherited Cargo metadata, auto-target
 disabling flags, examples/benches, and nested independently built crates inside
 another crate's source graph are not modeled.
 
-Bazel 8.5+ is required; CI targets 8.6 and 9.0 on Linux. Other platforms are
-configured following the reference, but native execution needs validation.
+Bazel 8.5+ is required. CI targets 8.6 and 9.0 with separate Linux test and
+example jobs, a macOS plugin smoke test on non-PR events, and macOS/Windows
+cross-target analysis from Linux. Cross-target analysis does not link or execute
+those binaries.
 
 ## Development and releases
 
@@ -190,6 +192,25 @@ Review snapshot changes before accepting them. `cargo test` generates its Rust
 protobuf bindings with a vendored protoc; the Bazel build uses the reference's
 `rust_prost_library` and `go_proto_library` setup. Go tests run through Bazel so
 the native library and generated Go bindings are supplied automatically.
+
+### GitHub Actions
+
+| Workflow | Trigger and purpose |
+| --- | --- |
+| `ci.yaml` | PRs, merge queue, and pushes to main: Linux Bazel tests, all runnable examples and generation diffs, and Darwin/Windows target analysis. Non-PR events also run a native macOS smoke test. |
+| `verify-hooks.yml` | PRs, merge queue, and main: install pinned pnpm/lefthook tooling; PRs validate the title and commits using the same Conventional Commit rules as gazelle_py. |
+| `release-smoke.yml` | PRs, merge queue, and main: create a disposable local tag, build a source archive, and verify its contents, SRI, version marker, and BCR source template without publishing. |
+| `release-please.yml` | Main pushes or manual dispatch: maintain the release PR, changelog, `version.txt`, and `MODULE.bazel`; create the release tag. |
+| `module_release.yaml` | Version tags or manual dispatch of an existing tag: publish the source archive using bazel-contrib's reusable workflow, then submit to BCR. |
+
+Release/manual workflows must be merged onto the default branch before they
+appear as dispatchable workflows in GitHub Actions. To run the local checks:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm exec commitlint --from main --to HEAD
+python3 .github/scripts/check_release.py
+```
 
 Release Please starts at `0.0.0`. Publishing requires the same organization
 setup as gazelle_py: `GH_RELEASE_TOKEN`, `BCR_PUBLISH_TOKEN`, a
