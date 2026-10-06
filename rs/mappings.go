@@ -35,11 +35,23 @@ func scopeKindMappings(c *config.Config, cfg *rustConfig) {
 			current = mapping.KindName
 		}
 	}
-	if !cfg.enabled {
+	if !cfg.enabled || !rustSelected(c) {
 		for kind := range cfg.kindMap {
 			delete(mappings, kind)
 		}
 	}
 	c.KindMap = mappings
 	c.AliasMap = aliases
+}
+
+func rustSelected(c *config.Config) bool {
+	if len(c.Langs) == 0 {
+		return true
+	}
+	for _, name := range c.Langs {
+		if name == languageName {
+			return true
+		}
+	}
+	return false
 }

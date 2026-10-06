@@ -1,1 +1,1 @@
-# gazelle:rust_extension enabled
+# gazelle:lang go,rs

@@ -1,6 +1,7 @@
 load("//:rules.bzl", "custom_binary")
 
-# gazelle:rust_extension enabled
+# gazelle:lang go,rs
+# gazelle:resolve rs api //disabled:api
 
 custom_binary(
     name = "app",

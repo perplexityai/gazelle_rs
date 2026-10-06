@@ -1,6 +1,6 @@
 load("//:rules.bzl", "custom_library")
 
-# gazelle:rust_extension enabled
+# gazelle:lang go,rs
 
 custom_library(
     name = "again",

@@ -167,11 +167,30 @@ custom wrappers, map each desired kind, for example:
 
 ### Root mappings with package opt-in
 
-Mappings can live at the root alongside `# gazelle:rust_extension disabled`.
-Add `# gazelle:rust_extension enabled` to each package you want to generate.
-Disabled packages retain their existing rule kinds, loads, and attributes; mapped
-libraries and proc macros remain available to the dependency index. Mappings are
-inherited through disabled directories and can be overridden in a child BUILD.
+Use Gazelle's standard `lang` directive to select Rust per package. For example,
+keep Go and Proto enabled at the root and opt a subtree into Rust:
+
+```starlark
+# Root BUILD.bazel
+# gazelle:lang go,proto
+# gazelle:map_kind rust_library custom_rust_library //:rules.bzl
+```
+
+```starlark
+# Opted-in package/BUILD.bazel
+# gazelle:lang go,proto,rs
+```
+
+Each list replaces the inherited list and applies to descendants, so include all
+languages that should remain enabled. An empty `# gazelle:lang` selects all
+languages. The command-line `-lang` filter also controls mapping activation when
+not overridden by a BUILD directive. The existing `rust_extension` directive is
+retained for compatibility; it is not required for package opt-in.
+Excluded packages retain their existing rule kinds, loads, and attributes.
+As with other languages, `lang` also excludes their Rust rules from the dependency
+index. Opt in a dependency's package or use an explicit `resolve` directive to
+reference it during migration. Mappings are inherited through excluded directories
+and can be overridden in a child BUILD.
 Other languages' mappings are unaffected.
 
 Opting in still applies the configured mappings to existing Rust rules in that
