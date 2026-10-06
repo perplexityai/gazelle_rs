@@ -4,6 +4,7 @@ go_library(
     name = "rs",
     srcs = [
         "cargo.go",
+        "catalog.go",
         "diagnostic.go",
         "generate.go",
         "import_extractor.go",
@@ -43,6 +44,7 @@ go_test(
     name = "rs_test",
     srcs = [
         "cargo_test.go",
+        "catalog_test.go",
         "generate_test.go",
         "mappings_test.go",
     ],

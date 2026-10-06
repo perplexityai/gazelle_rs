@@ -1,0 +1,43 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_proc_macro.bzl", "rust_proc_macro")
+
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "codec-1.0.0",
+    actual = ":codec_v1",
+)
+
+alias(
+    name = "codec-2.0.0",
+    actual = ":codec_v2",
+)
+
+alias(
+    name = "derive-1.0.0",
+    actual = ":derive_impl",
+)
+
+rust_library(
+    name = "codec_v1",
+    srcs = ["v1.rs"],
+    crate_name = "wire_codec",
+    crate_root = "v1.rs",
+    edition = "2021",
+)
+
+rust_library(
+    name = "codec_v2",
+    srcs = ["v2.rs"],
+    crate_name = "wire_codec",
+    crate_root = "v2.rs",
+    edition = "2021",
+)
+
+rust_proc_macro(
+    name = "derive_impl",
+    srcs = ["derive.rs"],
+    crate_name = "wire_derive",
+    crate_root = "derive.rs",
+    edition = "2021",
+)

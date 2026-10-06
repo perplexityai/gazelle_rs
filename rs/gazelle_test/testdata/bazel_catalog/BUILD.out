@@ -1,0 +1,13 @@
+# gazelle:rust_crate_catalog crates.json
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "consumer",
+    srcs = ["lib.rs"],
+    aliases = {"@vendor//:codec-v1": "renamed"},
+    crate_name = "consumer",
+    crate_root = "lib.rs",
+    edition = "2021",
+    proc_macro_deps = ["@vendor//:derive-v1"],
+    deps = ["@vendor//:codec-v1"],
+)

@@ -1,0 +1,6 @@
+module(
+    name = "fixture_crates",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_rs", version = "0.0.111")

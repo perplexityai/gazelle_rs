@@ -42,10 +42,53 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 		dep, overridden := resolve.FindRuleWithOverride(c, spec, languageName)
 		isMacro := false
 		externalName := ""
+		if !overridden && cargo != nil {
+			var renamed []externalCrate
+			for value, imported := range aliases {
+				if imported == name {
+					parsed, err := label.Parse(value)
+					if err == nil {
+						if candidate, ok := cargo.byLabel[parsed.Abs(from.Repo, from.Pkg).String()]; ok {
+							renamed = appendCrate(renamed, candidate)
+						}
+					}
+				}
+			}
+			if len(renamed) > 1 {
+				unresolved = true
+				diagnostic(c, "gazelle_rs: %s: ambiguous alias for crate %q", from.String(), name)
+				continue
+			}
+			if len(renamed) == 1 {
+				dep, isMacro, externalName = renamed[0].label, renamed[0].macro, renamed[0].name
+				overridden = true
+			}
+		}
 		if !overridden {
 			hits := ix.FindRulesByImportWithConfig(c, spec, languageName)
 			if len(hits) == 0 {
 				candidates := cargo.candidates(from.Pkg, name)
+				if len(candidates) > 1 {
+					var selected []externalCrate
+					for _, value := range append(r.AttrStrings("deps"), r.AttrStrings("proc_macro_deps")...) {
+						parsed, err := label.Parse(value)
+						if err != nil {
+							continue
+						}
+						known, ok := cargo.byLabel[parsed.Abs(from.Repo, from.Pkg).String()]
+						if !ok {
+							continue
+						}
+						for _, candidate := range candidates {
+							if known == candidate {
+								selected = appendCrate(selected, candidate)
+							}
+						}
+					}
+					if len(selected) == 1 {
+						candidates = selected
+					}
+				}
 				if len(candidates) != 1 {
 					unresolved = true
 					reason := "unresolved"

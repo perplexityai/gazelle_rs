@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "crates": [
+    {
+      "name": "wire_codec",
+      "label": "@fixture_crates//:codec-1.0.0",
+      "aliases": [
+        "@fixture_crates//:codec_v1"
+      ]
+    },
+    {
+      "name": "wire_codec",
+      "label": "@fixture_crates//:codec-2.0.0",
+      "aliases": [
+        "@fixture_crates//:codec_v2"
+      ]
+    },
+    {
+      "name": "wire_derive",
+      "label": "@fixture_crates//:derive-1.0.0",
+      "proc_macro": true,
+      "aliases": [
+        "@fixture_crates//:derive_impl"
+      ]
+    }
+  ]
+}

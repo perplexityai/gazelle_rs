@@ -57,7 +57,7 @@ func getConfig(c *config.Config) *rustConfig {
 	return &rustConfig{enabled: true, generateUnitTests: true, edition: "2021", visibility: []string{"//visibility:public"}}
 }
 func (*rustLang) KnownDirectives() []string {
-	return []string{"rust_extension", "rust_generate_unit_tests", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata"}
+	return []string{"rust_extension", "rust_generate_unit_tests", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog"}
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
@@ -91,6 +91,14 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				cfg.crateName = d.Value
 			case "rust_visibility":
 				cfg.visibility = strings.Fields(d.Value)
+			case "rust_crate_catalog":
+				cfg.cargo = nil
+				index, err := loadCrateCatalog(filepath.Join(c.RepoRoot, d.Value))
+				if err != nil {
+					diagnostic(c, "gazelle_rs: %s: %v", rel, err)
+					continue
+				}
+				cfg.cargo = index
 			case "rust_cargo_metadata":
 				args := strings.Fields(d.Value)
 				cfg.cargo = nil
