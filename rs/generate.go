@@ -53,6 +53,23 @@ func literalList(r *rule.Rule, attr string) bool {
 	}
 	return true
 }
+
+// Seed existing resolution attributes so an incomplete extraction or a computed
+// dependency expression cannot turn an early Resolve return into a deletion.
+func seedResolveAttrs(dst, src *rule.Rule) {
+	if src == nil {
+		return
+	}
+	for _, attr := range []string{"deps", "proc_macro_deps"} {
+		if value := src.Attr(attr); value != nil {
+			dst.SetAttr(attr, value)
+		}
+	}
+	if value := src.Attr("aliases"); value != nil {
+		dst.SetAttr("aliases", aliasValue{value})
+	}
+}
+
 func discover(args language.GenerateArgs) ([]plan, error) {
 	cfg := getConfig(args.Config)
 	name := crateName(filepath.Base(args.Dir))
@@ -190,10 +207,14 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		return result
 	}
 	reserved := map[string]bool{}
+	unitTests := map[string]bool{}
 	existingNames := map[string]bool{}
 	if args.File != nil {
 		for _, r := range args.File.Rules {
 			reserved[r.Name()] = true
+			if baseKind(args.Config, r.Kind()) == "rust_test" && strings.HasPrefix(r.AttrString("crate"), ":") {
+				unitTests[strings.TrimPrefix(r.AttrString("crate"), ":")] = true
+			}
 			existingNames[r.Name()] = true
 		}
 	}
@@ -237,9 +258,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		sort.Strings(srcs)
 		r := rule.NewRule(p.kind, p.name)
 		r.SetAttr("srcs", srcs)
-		if p.existing != nil && p.existing.Attr("aliases") != nil {
-			r.SetAttr("aliases", aliasValue{p.existing.Attr("aliases")})
-		}
+		seedResolveAttrs(r, p.existing)
 		r.SetAttr("crate_root", filepath.ToSlash(p.root))
 		r.SetAttr("edition", p.edition)
 		cn := crateName(p.name)
@@ -257,7 +276,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		preserve := p.existing != nil && (!literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps"))
 		result.Gen = append(result.Gen, r)
 		result.Imports = append(result.Imports, importData{names: names, preserve: preserve})
-		if fact.HasTests && p.kind != "rust_test" && !reserved[p.name+"_test"] {
+		if fact.HasTests && p.kind != "rust_test" && !reserved[p.name+"_test"] && !unitTests[p.name] {
 			test := rule.NewRule("rust_test", p.name+"_test")
 			test.SetAttr("crate", ":"+p.name)
 			result.Gen = append(result.Gen, test)
@@ -280,6 +299,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 					continue
 				}
 				r := rule.NewRule("rust_test", old.Name())
+				seedResolveAttrs(r, old)
 				r.SetAttr("crate", ":"+owner)
 				result.Gen = append(result.Gen, r)
 				result.Imports = append(result.Imports, importData{names: facts[0].TestImports, preserve: !literalList(old, "deps") || !literalList(old, "proc_macro_deps")})

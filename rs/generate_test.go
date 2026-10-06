@@ -164,3 +164,69 @@ func TestExistingRulesAndFailedGraphs(t *testing.T) {
 		})
 	}
 }
+
+func TestExistingUnitTestsPreventDuplicateDefaults(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"lib.rs", "other.rs"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("#[cfg(test)] mod tests { #[test] fn run() { test_support::check(); } }"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file, err := rule.LoadData(filepath.Join(dir, "BUILD.bazel"), "", []byte(`
+rust_library(name = "lib", crate_root = "lib.rs", srcs = ["lib.rs"])
+rust_library(name = "other", crate_root = "other.rs", srcs = ["other.rs"])
+rust_test(name = "custom_unit", crate = ":lib")
+rust_test(name = "custom_feature", crate = ":lib", crate_features = ["feature"])
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := config.New()
+	c.RepoRoot = dir
+	l := NewLanguage()
+	l.Configure(c, "", file)
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+	tests := map[string]string{}
+	for i, r := range result.Gen {
+		if r.Kind() == "rust_test" {
+			tests[r.Name()] = r.AttrString("crate")
+			if got := result.Imports[i].(importData).names; !reflect.DeepEqual(got, []string{"test_support"}) {
+				t.Fatalf("%s imports = %v", r.Name(), got)
+			}
+		}
+	}
+	want := map[string]string{"custom_unit": ":lib", "custom_feature": ":lib", "other_test": ":other"}
+	if !reflect.DeepEqual(tests, want) {
+		t.Fatalf("tests = %v, want %v", tests, want)
+	}
+}
+
+func TestNestedBuildCanOwnAnIndependentCrate(t *testing.T) {
+	root := t.TempDir()
+	for _, rel := range []string{"", "models"} {
+		dir := filepath.Join(root, rel, "src")
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "lib.rs"), []byte("pub fn run() {}"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l := NewLanguage()
+	parent := config.New()
+	parent.RepoRoot = root
+	l.Configure(parent, "", nil)
+	child := parent.Clone()
+	file, err := rule.LoadData(filepath.Join(root, "models/BUILD.bazel"), "models", []byte(`rust_library(name = "models", crate_root = "src/lib.rs", srcs = ["src/lib.rs"])`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Configure(child, "models", file)
+	got := l.GenerateRules(language.GenerateArgs{Config: child, Dir: filepath.Join(root, "models"), Rel: "models", File: file})
+	if len(got.Gen) != 1 || got.Gen[0].Name() != "models" {
+		t.Fatalf("nested crate was suppressed: %v", got.Gen)
+	}
+	if getConfig(parent).owner != "" || getConfig(child).owner != "models" {
+		t.Fatal("child ownership leaked into its parent")
+	}
+}
