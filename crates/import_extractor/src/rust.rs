@@ -141,14 +141,12 @@ impl Extractor {
             }
         }
         self.scopes.push(local.clone());
-        let modules: Names = items
+        let definitions: Names = items
             .iter()
-            .filter_map(|i| {
-                if let Item::Mod(m) = i {
-                    Some(ident(&m.ident))
-                } else {
-                    None
-                }
+            .filter_map(|item| match item {
+                Item::Mod(module) => Some(ident(&module.ident)),
+                Item::Macro(mac) => mac.ident.as_ref().map(ident),
+                _ => None,
             })
             .collect();
         for item in items {
@@ -200,7 +198,7 @@ impl Extractor {
             } else {
                 let mut visitor = Imports {
                     local: local.clone(),
-                    modules: modules.clone(),
+                    definitions: definitions.clone(),
                     imports: &mut self.imports,
                     tests: &mut self.test_imports,
                     testing,
@@ -215,7 +213,7 @@ impl Extractor {
 }
 struct Imports<'a> {
     local: Names,
-    modules: Names,
+    definitions: Names,
     imports: &'a mut Names,
     tests: &'a mut Names,
     testing: bool,
@@ -229,7 +227,7 @@ impl Imports<'_> {
         ) {
             return;
         }
-        if self.modules.contains(&name) {
+        if self.definitions.contains(&name) {
             return;
         }
         if !explicit && (self.local.contains(&name) || name.starts_with(char::is_uppercase)) {
@@ -316,7 +314,7 @@ impl<'ast> Visit<'ast> for Imports<'_> {
             for arg in &args {
                 let mut nested = Imports {
                     local: self.local.clone(),
-                    modules: self.modules.clone(),
+                    definitions: self.definitions.clone(),
                     imports: self.imports,
                     tests: self.tests,
                     testing: self.testing,
@@ -492,6 +490,23 @@ mod tests {
         assert_eq!(result.imports, ["async", "serde", "tracing"]);
         assert_eq!(result.sources.len(), 4);
     }
+    #[test]
+    fn local_macro_reexports_are_not_external_crates() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            mod diagnostics {
+                macro_rules! report { () => {}; }
+                pub(crate) use report;
+                pub(crate) use report as renamed_report;
+            }
+            use external;
+            fn run() { diagnostics::report!(); }
+            "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["external"]);
+    }
+
     #[test]
     fn grouped_self_imports_bind_the_parent_module() {
         let f = Fixture::new(&[(
