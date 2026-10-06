@@ -137,7 +137,7 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 	} else {
 		add(target{}, "rust_binary", binaryName, choose("src/main.rs", "main.rs"))
 	}
-	for _, pattern := range []string{"src/bin/*.rs", "src/bin/*/main.rs", "tests/*.rs"} {
+	for _, pattern := range []string{"src/bin/*.rs", "src/bin/*/main.rs", "tests/*.rs", "*.test.rs", "src/*.test.rs"} {
 		files, err := filepath.Glob(filepath.Join(args.Dir, pattern))
 		if err != nil {
 			return nil, err
@@ -149,9 +149,9 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 				n = filepath.Base(filepath.Dir(file))
 			}
 			kind := "rust_binary"
-			if strings.HasPrefix(pattern, "tests/") {
+			if strings.HasPrefix(pattern, "tests/") || strings.HasSuffix(file, ".test.rs") {
 				kind = "rust_test"
-				n += "_test"
+				n = strings.TrimSuffix(n, ".test") + "_test"
 			}
 			add(target{Name: n, Path: root}, kind, n, root)
 		}
@@ -164,6 +164,10 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 		for _, r := range args.File.Rules {
 			kind := baseKind(args.Config, r.Kind())
 			if kind != "rust_library" && kind != "rust_proc_macro" && kind != "rust_binary" && kind != "rust_test" {
+				continue
+			}
+			// Owner-based tests remain manually maintained, including additional sources.
+			if kind == "rust_test" && r.Attr("crate") != nil {
 				continue
 			}
 			root := r.AttrString("crate_root")
@@ -221,20 +225,11 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		diagnostic(args.Config, "gazelle_rs: %s: %v", args.Rel, err)
 		return result
 	}
-	reserved := map[string]bool{}
-	unitTests := map[string]bool{}
 	existingNames := map[string]bool{}
 	if args.File != nil {
 		for _, r := range args.File.Rules {
-			reserved[r.Name()] = true
-			if baseKind(args.Config, r.Kind()) == "rust_test" && strings.HasPrefix(r.AttrString("crate"), ":") {
-				unitTests[strings.TrimPrefix(r.AttrString("crate"), ":")] = true
-			}
 			existingNames[r.Name()] = true
 		}
-	}
-	for _, p := range plans {
-		reserved[p.name] = true
 	}
 	for _, p := range plans {
 		if p.existing == nil && existingNames[p.name] {
@@ -291,36 +286,6 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		preserve := p.existing != nil && (!literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps"))
 		result.Gen = append(result.Gen, r)
 		result.Imports = append(result.Imports, importData{names: names, preserve: preserve})
-		if cfg.generateUnitTests && fact.HasTests && p.kind != "rust_test" && !reserved[p.name+"_test"] && !unitTests[p.name] {
-			test := rule.NewRule("rust_test", p.name+"_test")
-			test.SetAttr("crate", ":"+p.name)
-			result.Gen = append(result.Gen, test)
-			result.Imports = append(result.Imports, importData{names: fact.TestImports})
-		}
-	}
-	// Refresh previously generated unit test rules too, without treating them as crate roots.
-	if args.File != nil {
-		for _, old := range args.File.Rules {
-			if baseKind(args.Config, old.Kind()) != "rust_test" || !strings.HasPrefix(old.AttrString("crate"), ":") {
-				continue
-			}
-			owner := strings.TrimPrefix(old.AttrString("crate"), ":")
-			for _, p := range plans {
-				if p.name != owner {
-					continue
-				}
-				facts, err := extract([]string{filepath.Join(args.Dir, p.root)})
-				if err != nil {
-					diagnostic(args.Config, "gazelle_rs: %s: %v (leaving target unchanged)", args.Rel, err)
-					continue
-				}
-				r := rule.NewRule("rust_test", old.Name())
-				seedResolveAttrs(r, old)
-				r.SetAttr("crate", ":"+owner)
-				result.Gen = append(result.Gen, r)
-				result.Imports = append(result.Imports, importData{names: facts[0].TestImports, preserve: !literalList(old, "deps") || !literalList(old, "proc_macro_deps")})
-			}
-		}
 	}
 	return result
 }

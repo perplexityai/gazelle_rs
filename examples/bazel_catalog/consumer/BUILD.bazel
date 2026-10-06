@@ -14,5 +14,33 @@ rust_library(
 
 rust_test(
     name = "consumer_test",
-    crate = ":consumer",
+    srcs = ["src/consumer.test.rs"],
+    aliases = {"@fixture_crates//:codec-1.0.0": "renamed"},
+    crate_name = "consumer_test",
+    crate_root = "src/consumer.test.rs",
+    edition = "2021",
+    proc_macro_deps = ["@fixture_crates//:derive-1.0.0"],
+    deps = [
+        ":consumer",
+        "@fixture_crates//:codec-1.0.0",
+    ],
+)
+
+rust_test(
+    name = "version_test",
+    srcs = ["version.test.rs"],
+    crate_name = "version_test",
+    crate_root = "version.test.rs",
+    edition = "2021",
+    deps = ["@fixture_crates//:codec-2.0.0"],
+)
+
+rust_test(
+    name = "discovery_test",
+    srcs = ["discovery.test.rs"],
+    crate_name = "discovery_test",
+    crate_root = "discovery.test.rs",
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [":consumer"],
 )

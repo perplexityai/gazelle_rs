@@ -40,7 +40,6 @@ func (*rustLang) Loads() []rule.LoadInfo {
 
 type rustConfig struct {
 	enabled            bool
-	generateUnitTests  bool
 	edition, crateName string
 	visibility         []string
 	excludes           []string
@@ -54,10 +53,10 @@ func getConfig(c *config.Config) *rustConfig {
 	if v, ok := c.Exts[languageName].(*rustConfig); ok {
 		return v
 	}
-	return &rustConfig{enabled: true, generateUnitTests: true, edition: "2021", visibility: []string{"//visibility:public"}}
+	return &rustConfig{enabled: true, edition: "2021", visibility: []string{"//visibility:public"}}
 }
 func (*rustLang) KnownDirectives() []string {
-	return []string{"rust_extension", "rust_generate_unit_tests", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog"}
+	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog"}
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
@@ -69,15 +68,6 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 			switch d.Key {
 			case "exclude":
 				cfg.excludes = append(cfg.excludes, path.Join(rel, d.Value))
-			case "rust_generate_unit_tests":
-				switch d.Value {
-				case "true":
-					cfg.generateUnitTests = true
-				case "false":
-					cfg.generateUnitTests = false
-				default:
-					diagnostic(c, "%s: invalid rust_generate_unit_tests value %q", rel, d.Value)
-				}
 			case "rust_extension":
 				cfg.enabled = d.Value != "disabled" && d.Value != "false"
 			case "rust_edition":

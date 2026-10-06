@@ -19,7 +19,5 @@ rust_test(
     aliases = {"//old:dependency": "old_alias"},
     crate = ":lib",
     proc_macro_deps = ["//old:test_derive"],
-    deps = select({
-        "//conditions:default": ["//old:dependency"],
-    }),
+    deps = select({"//conditions:default": ["//old:dependency"]}),
 )
