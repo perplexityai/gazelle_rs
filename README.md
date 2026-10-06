@@ -150,6 +150,7 @@ their rule kind.
 
 | Directive | Default | Meaning |
 | --- | --- | --- |
+| `rust_generate_unit_tests` | `true` | Set `false` to suppress new implicit unit-test targets; existing explicit tests are still updated. Inherited. |
 | `rust_extension` | `enabled` | `disabled` skips generation; inherited. |
 | `rust_edition` | `2021` | Edition used when the local manifest does not supply one; inherited. |
 | `rust_crate_name` | Package/directory name, with hyphens replaced by underscores | Override the default crate name in this package only. |

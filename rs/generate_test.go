@@ -199,6 +199,19 @@ rust_test(name = "custom_feature", crate = ":lib", crate_features = ["feature"])
 	if !reflect.DeepEqual(tests, want) {
 		t.Fatalf("tests = %v, want %v", tests, want)
 	}
+	file.Directives = append(file.Directives, rule.Directive{Key: "rust_generate_unit_tests", Value: "false"})
+	l.Configure(c, "", file)
+	result = l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+	tests = map[string]string{}
+	for _, r := range result.Gen {
+		if r.Kind() == "rust_test" {
+			tests[r.Name()] = r.AttrString("crate")
+		}
+	}
+	delete(want, "other_test")
+	if !reflect.DeepEqual(tests, want) {
+		t.Fatalf("explicit tests = %v, want %v", tests, want)
+	}
 }
 
 func TestNestedBuildCanOwnAnIndependentCrate(t *testing.T) {
@@ -262,5 +275,42 @@ func TestExcludedCrateRoots(t *testing.T) {
 	}
 	if !reflect.DeepEqual(roots, []string{"src/lib.rs", "tests/keep.rs"}) {
 		t.Fatalf("roots=%v", roots)
+	}
+}
+
+func TestResolutionRetainsExplicitCrateVariant(t *testing.T) {
+	c := config.New()
+	c.RepoRoot = t.TempDir()
+	l := NewLanguage()
+	rc := &resolve.Configurer{}
+	rc.RegisterFlags(nil, "", c)
+	l.Configure(c, "", nil)
+	ix := resolve.NewRuleIndex(func(*rule.Rule, string) resolve.Resolver { return l })
+	file := rule.EmptyFile(filepath.Join(c.RepoRoot, "BUILD.bazel"), "")
+	for _, name := range []string{"api", "api_minimal"} {
+		r := rule.NewRule("rust_library", name)
+		r.SetAttr("crate_name", "api")
+		ix.AddRule(c, r, file)
+	}
+	ix.Finish()
+	for _, attr := range []string{"deps", "crate"} {
+		r := rule.NewRule("rust_test", "consumer")
+		if attr == "deps" {
+			r.SetAttr(attr, []string{":api_minimal"})
+		} else {
+			r.SetAttr(attr, ":api_minimal")
+		}
+		l.Resolve(c, ix, nil, r, importData{names: []string{"api"}}, label.New("", "", "consumer"))
+		if got := r.AttrStrings("deps"); !reflect.DeepEqual(got, []string{":api_minimal"}) {
+			t.Fatalf("%s: deps=%v", attr, got)
+		}
+	}
+	// Multiple explicit candidates remain ambiguous and must preserve unrelated deps.
+	r := rule.NewRule("rust_test", "ambiguous")
+	want := []string{":api", ":api_minimal", ":retained"}
+	r.SetAttr("deps", want)
+	l.Resolve(c, ix, nil, r, importData{names: []string{"api"}}, label.New("", "", "ambiguous"))
+	if got := r.AttrStrings("deps"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ambiguous deps=%v", got)
 	}
 }

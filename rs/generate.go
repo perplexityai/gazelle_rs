@@ -292,7 +292,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		preserve := p.existing != nil && (!literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps"))
 		result.Gen = append(result.Gen, r)
 		result.Imports = append(result.Imports, importData{names: names, preserve: preserve})
-		if fact.HasTests && p.kind != "rust_test" && !reserved[p.name+"_test"] && !unitTests[p.name] {
+		if cfg.generateUnitTests && fact.HasTests && p.kind != "rust_test" && !reserved[p.name+"_test"] && !unitTests[p.name] {
 			test := rule.NewRule("rust_test", p.name+"_test")
 			test.SetAttr("crate", ":"+p.name)
 			result.Gen = append(result.Gen, test)
