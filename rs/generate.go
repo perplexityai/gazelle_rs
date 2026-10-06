@@ -2,7 +2,6 @@ package rs
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -219,7 +218,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	}
 	plans, err := discover(args)
 	if err != nil {
-		log.Printf("gazelle_rs: %s: %v", args.Rel, err)
+		diagnostic(args.Config, "gazelle_rs: %s: %v", args.Rel, err)
 		return result
 	}
 	reserved := map[string]bool{}
@@ -239,12 +238,12 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	}
 	for _, p := range plans {
 		if p.existing == nil && existingNames[p.name] {
-			log.Printf("gazelle_rs: %s: target name %q is already owned", args.Rel, p.name)
+			diagnostic(args.Config, "gazelle_rs: %s: target name %q is already owned", args.Rel, p.name)
 			continue
 		}
 		facts, err := extract([]string{filepath.Join(args.Dir, p.root)})
 		if err != nil {
-			log.Printf("gazelle_rs: %s: %v (leaving target unchanged)", args.Rel, err)
+			diagnostic(args.Config, "gazelle_rs: %s: %v (leaving target unchanged)", args.Rel, err)
 			continue
 		}
 		fact := facts[0]
@@ -253,7 +252,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		for _, src := range fact.Sources {
 			rel, err := filepath.Rel(args.Dir, src)
 			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-				log.Printf("gazelle_rs: source outside package: %s", src)
+				diagnostic(args.Config, "gazelle_rs: source outside package: %s", src)
 				valid = false
 				break
 			}
@@ -261,7 +260,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			for d := filepath.Dir(rel); d != "."; d = filepath.Dir(d) {
 				for _, buildName := range args.Config.ValidBuildFileNames {
 					if exists(filepath.Join(args.Dir, d, buildName)) {
-						log.Printf("gazelle_rs: source %s crosses Bazel package %s", src, d)
+						diagnostic(args.Config, "gazelle_rs: source %s crosses Bazel package %s", src, d)
 						valid = false
 					}
 				}
@@ -312,6 +311,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 				}
 				facts, err := extract([]string{filepath.Join(args.Dir, p.root)})
 				if err != nil {
+					diagnostic(args.Config, "gazelle_rs: %s: %v (leaving target unchanged)", args.Rel, err)
 					continue
 				}
 				r := rule.NewRule("rust_test", old.Name())

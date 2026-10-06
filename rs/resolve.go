@@ -1,7 +1,6 @@
 package rs
 
 import (
-	"log"
 	"sort"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -53,7 +52,7 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 					if len(candidates) > 1 {
 						reason = "ambiguous external"
 					}
-					log.Printf("gazelle_rs: %s: %s crate %q; add # gazelle:resolve rs %s <label>", from.String(), reason, name, name)
+					diagnostic(c, "gazelle_rs: %s: %s crate %q; add # gazelle:resolve rs %s <label>", from.String(), reason, name, name)
 					continue
 				}
 				dep, isMacro, externalName = candidates[0].label, candidates[0].macro, candidates[0].name
@@ -86,7 +85,7 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 			}
 			if len(hits) > 1 {
 				unresolved = true
-				log.Printf("gazelle_rs: %s: ambiguous crate %q; add # gazelle:resolve rs %s <label>", from.String(), name, name)
+				diagnostic(c, "gazelle_rs: %s: ambiguous crate %q; add # gazelle:resolve rs %s <label>", from.String(), name, name)
 				continue
 			}
 			if len(hits) == 1 {
@@ -105,19 +104,19 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 		if externalName != "" {
 			if previous, ok := importNames[value]; ok && previous != name {
 				unresolved = true
-				log.Printf("gazelle_rs: %s: crate %s imported as both %s and %s; preserve explicit aliases", from.String(), value, previous, name)
+				diagnostic(c, "gazelle_rs: %s: crate %s imported as both %s and %s; preserve explicit aliases", from.String(), value, previous, name)
 				continue
 			}
 			importNames[value] = name
 			if aliases[value] != "" && aliases[value] != name {
 				unresolved = true
-				log.Printf("gazelle_rs: %s: alias for %s conflicts with import %s; preserve explicit aliases", from.String(), value, name)
+				diagnostic(c, "gazelle_rs: %s: alias for %s conflicts with import %s; preserve explicit aliases", from.String(), value, name)
 				continue
 			}
 			if externalName != name {
 				if !editableAliases {
 					unresolved = true
-					log.Printf("gazelle_rs: %s: cannot add alias %s for %s; preserve explicit aliases", from.String(), name, value)
+					diagnostic(c, "gazelle_rs: %s: cannot add alias %s for %s; preserve explicit aliases", from.String(), name, value)
 					continue
 				}
 				aliases[value] = name
