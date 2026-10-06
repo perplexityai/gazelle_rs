@@ -230,3 +230,37 @@ func TestNestedBuildCanOwnAnIndependentCrate(t *testing.T) {
 		t.Fatal("child ownership leaked into its parent")
 	}
 }
+
+func TestExcludedCrateRoots(t *testing.T) {
+	root := t.TempDir()
+	for _, file := range []string{"pkg/src/lib.rs", "pkg/src/bin/tool.rs", "pkg/tests/privileged.rs", "pkg/tests/keep.rs"} {
+		full := filepath.Join(root, file)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("pub fn run() {}"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := config.New()
+	c.RepoRoot = root
+	l := NewLanguage()
+	parent, err := rule.LoadData(filepath.Join(root, "BUILD.bazel"), "", []byte("# gazelle:exclude pkg/src/bin\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Configure(c, "", parent)
+	child, err := rule.LoadData(filepath.Join(root, "pkg/BUILD.bazel"), "pkg", []byte("# gazelle:exclude tests/priv*.rs\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Configure(c, "pkg", child)
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: filepath.Join(root, "pkg"), Rel: "pkg", File: child})
+	var roots []string
+	for _, r := range result.Gen {
+		roots = append(roots, r.AttrString("crate_root"))
+	}
+	if !reflect.DeepEqual(roots, []string{"src/lib.rs", "tests/keep.rs"}) {
+		t.Fatalf("roots=%v", roots)
+	}
+}

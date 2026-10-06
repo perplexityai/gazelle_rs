@@ -306,6 +306,15 @@ impl<'ast> Visit<'ast> for Imports<'_> {
     }
     fn visit_macro(&mut self, mac: &'ast syn::Macro) {
         self.visit_path(&mac.path);
+        // Quoted Rust is output syntax, not code evaluated by this crate.
+        if mac.path.segments.last().is_some_and(|s| {
+            matches!(
+                s.ident.to_string().as_str(),
+                "quote" | "quote_spanned" | "parse_quote" | "parse_quote_spanned"
+            )
+        }) {
+            return;
+        }
         // Common Rust macros (assert_eq!, println!, vec!, etc.) take expression
         // lists. Inspect those expressions without expanding the macro.
         if let Ok(args) = syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
@@ -490,6 +499,21 @@ mod tests {
         assert_eq!(result.imports, ["async", "serde", "tracing"]);
         assert_eq!(result.sources.len(), 4);
     }
+    #[test]
+    fn quoted_paths_are_not_dependencies_of_the_generator() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            fn generate() {
+                let _ = quote::quote!(output_only::Value);
+                let _ = syn::parse_quote!(another_output::Value);
+                assert_eq!(actual::value(), 1);
+            }
+        "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["actual", "quote", "syn"]);
+    }
+
     #[test]
     fn local_macro_reexports_are_not_external_crates() {
         let f = Fixture::new(&[(

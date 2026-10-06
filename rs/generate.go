@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bazelbuild/buildtools/build"
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 type target struct {
@@ -34,6 +36,17 @@ type plan struct {
 type importData struct {
 	names    []string
 	preserve bool
+}
+
+func excludedRoot(cfg *rustConfig, rel, root string) bool {
+	for file := path.Join(rel, filepath.ToSlash(root)); file != "."; file = path.Dir(file) {
+		for _, pattern := range cfg.excludes {
+			if matched, _ := doublestar.Match(pattern, file); matched {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func exists(file string) bool { st, err := os.Stat(file); return err == nil && !st.IsDir() }
@@ -183,6 +196,9 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 	seenNames, seenRoots := map[string]bool{}, map[string]bool{}
 	var out []plan
 	for _, p := range plans {
+		if excludedRoot(cfg, args.Rel, p.root) {
+			continue
+		}
 		if p.existing == nil && seenRoots[p.kind+":"+p.root] {
 			continue
 		}

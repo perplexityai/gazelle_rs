@@ -156,6 +156,8 @@ their rule kind.
 | `rust_visibility` | `//visibility:public` | Space-separated labels for new targets; inherited. |
 | `rust_cargo_metadata` | Unset | `@repository workspace-relative/path.json` for a rules_rs Cargo metadata catalog; inherited. |
 
+Gazelle's standard `exclude` directive also applies to crate-root discovery, including inherited directory exclusions and glob patterns. It leaves existing excluded rules untouched; source files reached through another crate's module graph remain part of that crate.
+
 Gazelle's `resolve` and `map_kind` directives work normally. For rules_rust or
 custom wrappers, map each desired kind, for example:
 

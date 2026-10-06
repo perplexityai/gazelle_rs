@@ -4,6 +4,7 @@ package rs
 import (
 	"flag"
 	"log"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -42,6 +43,7 @@ type rustConfig struct {
 	enabled            bool
 	edition, crateName string
 	visibility         []string
+	excludes           []string
 	owner              string
 	owned              bool
 	kindMap            map[string]config.MappedKind
@@ -59,11 +61,14 @@ func (*rustLang) KnownDirectives() []string {
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
+	cfg.excludes = append([]string(nil), cfg.excludes...)
 	// Crate names apply only to this package; edition and visibility inherit.
 	cfg.crateName = ""
 	if f != nil {
 		for _, d := range f.Directives {
 			switch d.Key {
+			case "exclude":
+				cfg.excludes = append(cfg.excludes, path.Join(rel, d.Value))
 			case "rust_extension":
 				cfg.enabled = d.Value != "disabled" && d.Value != "false"
 			case "rust_edition":
