@@ -1,0 +1,2 @@
+# gazelle:rust_visibility
+package(default_visibility = ["//visibility:public"])

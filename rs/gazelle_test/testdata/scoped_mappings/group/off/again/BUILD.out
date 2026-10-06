@@ -8,5 +8,4 @@ custom_library(
     crate_name = "again",
     crate_root = "lib.rs",
     edition = "2021",
-    visibility = ["//visibility:public"],
 )

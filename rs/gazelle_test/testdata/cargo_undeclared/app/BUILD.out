@@ -6,6 +6,5 @@ rust_binary(
     crate_name = "server",
     crate_root = "src/main.rs",
     edition = "2024",
-    visibility = ["//visibility:public"],
     deps = ["//tools:internal_tools"],
 )

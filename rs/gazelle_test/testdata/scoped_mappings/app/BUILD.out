@@ -9,6 +9,5 @@ custom_binary(
     crate_name = "app",
     crate_root = "src/main.rs",
     edition = "2021",
-    visibility = ["//visibility:public"],
     deps = ["//disabled:api"],
 )

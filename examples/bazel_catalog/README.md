@@ -16,3 +16,7 @@ imports under `-strict`.
 
 The script restores the committed consumer BUILD on exit. CI runs it on both
 supported Bazel versions alongside the other examples.
+
+The visibility E2E builds a cross-package dependency allowed by
+`package(default_visibility)` and verifies that a library without a visibility
+override remains inaccessible from another package.

@@ -155,7 +155,7 @@ their rule kind.
 | `rust_extension` | `enabled` | `disabled` skips generation; inherited. |
 | `rust_edition` | `2021` | Edition used when the local manifest does not supply one; inherited. |
 | `rust_crate_name` | Package/directory name, with hyphens replaced by underscores | Override the default crate name in this package only. |
-| `rust_visibility` | `//visibility:public` | Space-separated labels for new targets; inherited. |
+| `rust_visibility` | unset | Space-separated visibility labels for new targets; inherited. Unset or empty omits the attribute, respecting `package(default_visibility)` (private when absent). |
 | `rust_cargo_metadata` | Unset | `@repository workspace-relative/path.json` for a rules_rs Cargo metadata catalog; inherited. |
 
 Gazelle's standard `exclude` directive also applies to crate-root discovery, including inherited directory exclusions and glob patterns. It leaves existing excluded rules untouched; source files reached through another crate's module graph remain part of that crate.
@@ -388,3 +388,16 @@ Version choices and renamed imports belong on each standalone test's own
 This deliberately removes implicit unit-test generation, owner-target refresh,
 and the associated policy flag. It avoids inheriting dependency choices from
 another target and makes every generated test use ordinary crate resolution.
+
+## Visibility defaults
+
+New targets no longer receive `//visibility:public` automatically. Without a
+`rust_visibility` directive, Gazelle omits the attribute so Bazel applies
+`package(default_visibility)` or its private default. Existing target visibility
+is preserved, including targets that already omit the attribute.
+
+To keep newly generated targets public, explicitly configure
+`# gazelle:rust_visibility //visibility:public` at the desired BUILD scope.
+An empty `# gazelle:rust_visibility` clears an inherited override and restores
+package-default behavior. This changes visibility only for newly discovered
+targets; Gazelle does not narrow existing public targets automatically.

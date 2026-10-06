@@ -6,5 +6,4 @@ rust_library(
     crate_name = "internal_tools",
     crate_root = "src/lib.rs",
     edition = "2024",
-    visibility = ["//visibility:public"],
 )

@@ -1,9 +1,10 @@
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
 
 rust_library(
-    name = "api",
+    name = "child",
     srcs = ["lib.rs"],
-    crate_name = "api",
+    crate_name = "child",
     crate_root = "lib.rs",
     edition = "2021",
+    visibility = ["//friends:__pkg__"],
 )
