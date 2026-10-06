@@ -138,6 +138,7 @@ func TestStrictDiagnostics(t *testing.T) {
 		{"unresolved", "", "pub use missing_crate::Value;", "unresolved crate"},
 		{"parse", "", "pub fn broken( {", "leaving target unchanged"},
 		{"configuration", "# gazelle:rust_edition invalid\n", "pub fn valid() {}", "invalid Rust edition"},
+		{"catalog", "# gazelle:rust_crate_catalog missing-catalog.json\n", "pub fn valid() {}", "missing-catalog.json"},
 	} {
 		for _, strict := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/strict=%v", tc.name, strict), func(t *testing.T) {
@@ -169,7 +170,7 @@ rust_library(
 				if strict && string(got) != build {
 					t.Fatalf("strict failure modified BUILD: %s", got)
 				}
-				if tc.name != "configuration" && !strings.Contains(string(got), "//existing:dependency") {
+				if (tc.name == "unresolved" || tc.name == "parse") && !strings.Contains(string(got), "//existing:dependency") {
 					t.Fatalf("incomplete inference removed existing dependency: %s", got)
 				}
 			})

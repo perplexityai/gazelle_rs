@@ -1,0 +1,18 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_library(
+    name = "consumer",
+    srcs = ["src/lib.rs"],
+    aliases = {"@fixture_crates//:codec-1.0.0": "renamed"},
+    crate_name = "consumer",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    proc_macro_deps = ["@fixture_crates//:derive-1.0.0"],
+    deps = ["@fixture_crates//:codec-1.0.0"],
+)
+
+rust_test(
+    name = "consumer_test",
+    crate = ":consumer",
+)

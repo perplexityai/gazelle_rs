@@ -250,6 +250,61 @@ Without strict mode, Gazelle reports these diagnostics and preserves existing
 dependencies when inference is incomplete. Strict mode does not detect imports
 hidden by arbitrary macro expansion or validate configurations it cannot model.
 
+## Bazel-only dependency catalog
+
+Use a versioned crate catalog when BUILD files own first-party dependencies.
+It records actual Bazel labels, library import names and procedural-macro kinds;
+no first-party Cargo manifests or Cargo metadata invocation are required.
+
+```starlark
+# gazelle:rust_crate_catalog tools/rust/crates.json
+```
+
+The path is relative to the repository root. This directive and
+`rust_cargo_metadata` select alternative catalogs; the nearest configuration
+wins (the last directive wins if both appear in one file).
+
+Export from a crate repository's aliases and their Rust targets:
+
+```sh
+bazel query 'deps(attr(actual, "^@@?[^/]+//", @crates//:all), 1)' \
+  --output=xml > /tmp/rust-crates.xml
+bazel run @gazelle_rs//cmd/crate_catalog -- \
+  -input /tmp/rust-crates.xml -prefix @crates//: > tools/rust/crates.json
+```
+
+Run the second command only if the query succeeds. The example filters out
+aliases to first-party targets; Gazelle indexes those from their BUILD files.
+Increase the query depth for repositories with chains of aliases. The exporter
+fails on missing alias targets or cycles, ignores non-Rust targets, and strips
+machine paths and canonical repository names from its output. It does not build
+or run the dependency crates. Refresh the catalog when the Bazel dependency
+repository changes; ordinary Gazelle runs only read the checked-in JSON.
+
+Vendored repositories can use a query over their targets and a prefix such as
+`//third_party/crates:`. Custom exporters can produce the same schema:
+
+```json
+{
+  "version": 1,
+  "crates": [
+    {"name": "wire_codec", "label": "@crates//:codec-1.2.3", "aliases": ["@crates//:codec"]},
+    {"name": "wire_derive", "label": "@crates//:wire-derive-2.0.0", "proc_macro": true}
+  ]
+}
+```
+
+`aliases` lists alternative Bazel labels for the same target, not Rust import
+renames. Rust renames belong in the consuming rule's `aliases` attribute.
+Existing literal deps disambiguate multiple catalog versions. If a new import
+has multiple candidates, use the standard `gazelle:resolve rs` directive to
+choose explicitly; Gazelle never chooses the newest version implicitly.
+
+The [`examples/bazel_catalog`](examples/bazel_catalog) E2E test exports a real
+Bazel catalog, regenerates BUILD files from incomplete declarations, builds and
+tests the result, checks idempotence, and verifies strict unresolved-import
+failure. It contains no Cargo manifests and runs in the example CI matrix.
+
 ## Scope
 
 This is source-level dependency inference, not Cargo or rustc execution. It does

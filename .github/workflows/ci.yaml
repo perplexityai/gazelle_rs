@@ -105,6 +105,12 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Bazel-only catalog end-to-end
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel }}
+          BAZEL: bazelisk
+        run: examples/bazel_catalog/test.sh
+
       # cross_compile is special: it has no Rust source and no gazelle diff
       # to check — its job is to analyze a darwin-targeted gazelle_binary on a
       # Linux runner so the @macos_sdk visibility regression in gazelle_rs's

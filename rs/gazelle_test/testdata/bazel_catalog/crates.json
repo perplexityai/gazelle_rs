@@ -1,0 +1,1 @@
+{"version":1,"crates":[{"name":"codec","label":"@vendor//:codec-v1"},{"name":"codec","label":"@vendor//:codec-v2"},{"name":"wire_derive","label":"@vendor//:derive-v1","proc_macro":true}]}
