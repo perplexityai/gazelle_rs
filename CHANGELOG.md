@@ -1,3 +1,16 @@
 # Changelog
 
+## 1.0.0 (2026-10-06)
+
+## What's Changed
+* feat: add Rust Gazelle plugin with manifest-free internal imports by @longlho in https://github.com/perplexityai/gazelle_rs/pull/1
+* ci: align automation and releases with gazelle_py by @longlho in https://github.com/perplexityai/gazelle_rs/pull/3
+
+## New Contributors
+* @longlho made their first contribution in https://github.com/perplexityai/gazelle_rs/pull/1
+
+**Full Changelog**: https://github.com/perplexityai/gazelle_rs/commits/v1.0.0
+
+## Changelog
+
 Releases are managed by Release Please.
