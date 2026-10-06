@@ -107,7 +107,8 @@ Gazelle Resolve       → overrides / internal index → deps / proc_macro_deps
 The conventional roots are `src/lib.rs` or `lib.rs`, and `src/main.rs` or
 `main.rs`. A package containing both gets `<name>` and `<name>_bin` targets.
 `src/bin/*.rs`, `src/bin/*/main.rs`, and `tests/*.rs` are discovered too.
-Integration test targets use the filename plus `_test`. Subdirectories owned
+Standalone `*.test.rs` and `src/*.test.rs` roots are discovered as well.
+Test targets use the filename stem plus `_test` (`api.test.rs` becomes `api_test`). Subdirectories owned
 by a crate do not generate duplicate crates.
 
 The parser follows declared out-of-line and inline `mod` trees, including
@@ -116,7 +117,8 @@ literal `#[path = "..."]` attributes. Only reachable source files become
 and type paths, qualified macro invocations, expression-list macro arguments, and qualified derive paths. It
 ignores standard-library paths, local modules, and imported aliases in ordinary
 qualified expressions. Direct `#[cfg(test)]` imports are separated from ordinary
-dependencies; detected unit tests get a `rust_test(crate = ":owner")` target.
+dependencies. Only standalone test crates receive generated `rust_test` targets;
+inline tests do not create additional targets.
 
 Explicit rules with literal sources and crate roots retain their names and
 crate names. Unrelated attributes survive Gazelle's merge. Computed `srcs`
@@ -150,7 +152,6 @@ their rule kind.
 
 | Directive | Default | Meaning |
 | --- | --- | --- |
-| `rust_generate_unit_tests` | `true` | Set `false` to suppress new implicit unit-test targets; existing explicit tests are still updated. Inherited. |
 | `rust_extension` | `enabled` | `disabled` skips generation; inherited. |
 | `rust_edition` | `2021` | Edition used when the local manifest does not supply one; inherited. |
 | `rust_crate_name` | Package/directory name, with hyphens replaced by underscores | Override the default crate name in this package only. |
@@ -361,3 +362,29 @@ setup as gazelle_py: `GH_RELEASE_TOKEN`, `BCR_PUBLISH_TOKEN`, a
 on that fork. No releases or registry submissions have been created by this
 setup. Confirm the maintainer entries in `.bcr/metadata.template.json` before
 publishing.
+
+## Breaking change: standalone test generation
+
+Gazelle no longer creates or updates owner-based `rust_test(crate = ":owner")`
+targets. Existing owner-based targets are left manually maintained, including
+sources, aliases, and dependency expressions. The `rust_generate_unit_tests`
+directive has been removed; delete it from BUILD files before upgrading.
+
+For generated tests, move tests into a standalone `*.test.rs` file at the package
+root or directly under `src/`, and import the library by its crate name. Do not
+include this file in the library with `mod` or `#[path]`. Run Gazelle to create a
+`rust_test` with explicit `srcs`, `crate_root`, and dependencies. Existing
+standalone roots in `tests/*.rs`, Cargo test declarations, and explicit BUILD
+test roots continue to work.
+
+Standalone tests can only access the library's public API. Tests requiring
+private-item access can remain in manually maintained owner-based targets.
+Remove an old owner-based target only after its replacement builds and runs;
+Gazelle does not delete or convert it automatically. When retaining its target
+name, replace `crate` with the new `crate_root` and `srcs` before generation.
+Version choices and renamed imports belong on each standalone test's own
+`deps` and `aliases`, or in a `gazelle:resolve` directive.
+
+This deliberately removes implicit unit-test generation, owner-target refresh,
+and the associated policy flag. It avoids inheriting dependency choices from
+another target and makes every generated test use ordinary crate resolution.
