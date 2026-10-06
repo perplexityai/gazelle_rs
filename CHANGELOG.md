@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 (2026-10-06)
+
+## What's Changed
+* feat: respect language filters and resolve Cargo metadata by @longlho in https://github.com/perplexityai/gazelle_rs/pull/6
+* fix: handle grouped imports, tool attributes, and sibling modules by @longlho in https://github.com/perplexityai/gazelle_rs/pull/8
+* fix: preserve dependencies and respect Rust module and test ownership by @longlho in https://github.com/perplexityai/gazelle_rs/pull/9
+
+
+**Full Changelog**: https://github.com/perplexityai/gazelle_rs/compare/v1.0.1...v1.1.0
+
 ## 1.0.1 (2026-10-06)
 
 ## What's Changed
