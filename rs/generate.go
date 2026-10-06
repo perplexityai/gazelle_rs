@@ -276,7 +276,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			cn = p.existing.AttrString("crate_name")
 		}
 		r.SetAttr("crate_name", cn)
-		if p.existing == nil {
+		if p.existing == nil && len(cfg.visibility) > 0 {
 			r.SetAttr("visibility", cfg.visibility)
 		}
 		names := append([]string{}, fact.Imports...)

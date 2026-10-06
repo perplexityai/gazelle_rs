@@ -1,9 +1,11 @@
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
 
+package(default_visibility = ["//friends:__pkg__"])
+
 rust_library(
-    name = "api",
+    name = "defaults",
     srcs = ["lib.rs"],
-    crate_name = "api",
+    crate_name = "defaults",
     crate_root = "lib.rs",
     edition = "2021",
 )

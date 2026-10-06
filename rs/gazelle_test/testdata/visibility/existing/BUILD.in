@@ -1,0 +1,13 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+# gazelle:rust_visibility //visibility:public
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "existing",
+    srcs = ["lib.rs"],
+    crate_name = "existing",
+    crate_root = "lib.rs",
+    edition = "2021",
+    visibility = ["//visibility:private"],
+)

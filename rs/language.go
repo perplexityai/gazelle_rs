@@ -53,7 +53,7 @@ func getConfig(c *config.Config) *rustConfig {
 	if v, ok := c.Exts[languageName].(*rustConfig); ok {
 		return v
 	}
-	return &rustConfig{enabled: true, edition: "2021", visibility: []string{"//visibility:public"}}
+	return &rustConfig{enabled: true, edition: "2021"}
 }
 func (*rustLang) KnownDirectives() []string {
 	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog"}

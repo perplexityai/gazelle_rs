@@ -41,6 +41,5 @@ rust_test(
     crate_name = "discovery_test",
     crate_root = "discovery.test.rs",
     edition = "2021",
-    visibility = ["//visibility:public"],
     deps = [":consumer"],
 )

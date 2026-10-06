@@ -1,0 +1,1 @@
+# gazelle:rust_visibility //friends:__pkg__

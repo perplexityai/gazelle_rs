@@ -7,7 +7,6 @@ rust_binary(
     crate_name = "app",
     crate_root = "src/main.rs",
     edition = "2021",
-    visibility = ["//visibility:public"],
     deps = ["//api"],
 )
 
@@ -17,6 +16,5 @@ rust_test(
     crate_name = "check_test",
     crate_root = "tests/check.rs",
     edition = "2021",
-    visibility = ["//visibility:public"],
     deps = ["//api"],
 )
