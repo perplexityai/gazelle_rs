@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 (2026-10-06)
+
+## What's Changed
+* fix: match BCR maintainers and releaser to gazelle_py by @longlho in https://github.com/perplexityai/gazelle_rs/pull/4
+
+
+**Full Changelog**: https://github.com/perplexityai/gazelle_rs/compare/v1.0.0...v1.0.1
+
 ## 1.0.0 (2026-10-06)
 
 ## What's Changed

@@ -1,6 +1,6 @@
 module(
     name = "gazelle_rs",
-    version = "1.0.0",  # x-release-please-version
+    version = "1.0.1",  # x-release-please-version
     # Preserve the supported Bazel range; CI covers Bazel 8.x and 9.x.
     bazel_compatibility = [">=8.5.0"],
 )
