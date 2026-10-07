@@ -32,6 +32,7 @@ type plan struct {
 	name, root, kind, edition string
 	existing                  *rule.Rule
 	autoTest                  bool
+	owner                     *rule.Rule
 }
 type importData struct {
 	names    []string
@@ -115,7 +116,7 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 			if t.ProcMacro {
 				kind = "rust_proc_macro"
 			}
-			plans = append(plans, plan{name: crateName(t.Name), root: t.Path, kind: kind, edition: edition, autoTest: autoTest})
+			plans = append(plans, plan{name: crateName(t.Name), root: filepath.Clean(t.Path), kind: kind, edition: edition, autoTest: autoTest})
 		}
 	}
 	choose := func(paths ...string) string {
@@ -193,12 +194,12 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 					plans = append(plans[:i], plans[i+1:]...)
 				}
 			}
-			if root != "" && (kind != "rust_test" || literalList(r, "srcs")) {
+			if root != "" {
 				existingEdition := edition
 				if e := r.AttrString("edition"); e != "" {
 					existingEdition = e
 				}
-				plans = append(plans, plan{name: r.Name(), root: root, kind: kind, edition: existingEdition, existing: r})
+				plans = append(plans, plan{name: r.Name(), root: filepath.Clean(root), kind: kind, edition: existingEdition, existing: r})
 			}
 		}
 	}
@@ -275,6 +276,54 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			existingNames[r.Name()] = true
 		}
 	}
+	// Explicit test roots own their variants. Legacy crate-based tests need the
+	// library's full source graph, so leave that library untouched until migrated.
+	testedRoots, legacyOwners := map[string]bool{}, map[string]bool{}
+	for _, p := range active {
+		if p.kind == "rust_test" {
+			testedRoots[p.root] = true
+		}
+	}
+	if args.File != nil {
+		for _, r := range args.File.Rules {
+			if baseKind(args.Config, r.Kind()) != "rust_test" {
+				continue
+			}
+			owner := r.AttrString("crate")
+			owner = strings.TrimPrefix(owner, "//"+args.Rel+":")
+			owner = strings.TrimPrefix(owner, ":")
+			if owner != "" && !strings.ContainsAny(owner, "/:@") {
+				legacyOwners[owner] = true
+			}
+		}
+	}
+	for _, p := range active {
+		graph := graphs[filepath.Join(args.Dir, p.root)]
+		if p.kind != "rust_library" && p.kind != "rust_binary" {
+			continue
+		}
+		if graph.fact == nil || len(graph.fact.TestSources) == 0 || testedRoots[p.root] || legacyOwners[p.name] {
+			continue
+		}
+		if p.existing != nil && !literalList(p.existing, "srcs") {
+			continue
+		}
+		if p.existing != nil && (!literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps")) {
+			diagnostic(args.Config, "gazelle_rs: %s: %s has computed dependencies; declare a rust_test with crate_root = %q and its dependency expressions", args.Rel, p.name, p.root)
+			continue
+		}
+		name := p.name + "_test"
+		if existingNames[name] || seenNames[name] {
+			diagnostic(args.Config, "gazelle_rs: %s: unit test name %q is already owned; declare a rust_test with crate_root = %q", args.Rel, name, p.root)
+			continue
+		}
+		owner := p.existing
+		if owner == nil {
+			owner = rule.NewRule(p.kind, p.name)
+		}
+		active = append(active, plan{name: name, root: p.root, kind: "rust_test", edition: p.edition, owner: owner})
+		testedRoots[p.root], seenNames[name] = true, true
+	}
 	for _, p := range active {
 		root := filepath.Join(args.Dir, p.root)
 		if p.existing == nil && existingNames[p.name] {
@@ -298,9 +347,19 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			continue
 		}
 		fact := graph.fact
+		if legacyOwners[p.name] && len(fact.TestSources) > 0 {
+			continue
+		}
 		var srcs []string
 		valid := true
+		testSources := map[string]bool{}
+		for _, src := range fact.TestSources {
+			testSources[src] = true
+		}
 		for _, src := range fact.Sources {
+			if p.kind != "rust_test" && testSources[src] {
+				continue
+			}
 			rel, err := filepath.Rel(args.Dir, src)
 			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 				diagnostic(args.Config, "gazelle_rs: source outside package: %s", src)
@@ -325,9 +384,23 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		r := rule.NewRule(p.kind, p.name)
 		r.SetAttr("srcs", srcs)
 		seedResolveAttrs(r, p.existing)
+		if p.owner != nil {
+			seedResolveAttrs(r, p.owner)
+			for _, attr := range []string{"crate_features", "compile_data", "rustc_env", "rustc_env_files", "rustc_flags"} {
+				if value := p.owner.Attr(attr); value != nil {
+					r.SetAttr(attr, value)
+				}
+			}
+		}
 		r.SetAttr("crate_root", filepath.ToSlash(p.root))
 		r.SetAttr("edition", p.edition)
 		cn := crateName(p.name)
+		if p.owner != nil {
+			cn = crateName(p.owner.Name())
+			if n := p.owner.AttrString("crate_name"); n != "" {
+				cn = n
+			}
+		}
 		if p.existing != nil && p.existing.AttrString("crate_name") != "" {
 			cn = p.existing.AttrString("crate_name")
 		}

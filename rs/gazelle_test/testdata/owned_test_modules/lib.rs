@@ -4,7 +4,7 @@ pub fn value() -> u32 { private_value() }
 #[path = "lib.test.rs"]
 mod tests;
 mod detail;
-#[cfg(feature = "extra")]
+#[cfg(all(test, feature = "extra"))]
 #[path = "feature.test.rs"]
 mod feature_tests;
 #[cfg(test)]

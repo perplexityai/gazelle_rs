@@ -5,6 +5,17 @@ rust_library(
     name = "sample",
     srcs = [
         "detail.rs",
+        "lib.rs",
+    ],
+    crate_name = "sample",
+    crate_root = "lib.rs",
+    edition = "2021",
+)
+
+rust_test(
+    name = "sample_test",
+    srcs = [
+        "detail.rs",
         "feature.test.rs",
         "lib.rs",
         "lib.test.rs",
@@ -14,9 +25,4 @@ rust_library(
     crate_name = "sample",
     crate_root = "lib.rs",
     edition = "2021",
-)
-
-rust_test(
-    name = "sample_unit",
-    crate = ":sample",
 )

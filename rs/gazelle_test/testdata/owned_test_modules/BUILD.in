@@ -6,8 +6,3 @@ rust_library(
     srcs = ["lib.rs"],
     crate_root = "lib.rs",
 )
-
-rust_test(
-    name = "sample_unit",
-    crate = ":sample",
-)

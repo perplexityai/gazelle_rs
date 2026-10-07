@@ -3,11 +3,7 @@ load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 rust_library(
     name = "sample",
-    srcs = [
-        "lib.rs",
-        "manifest.test.rs",
-        "shared.test.rs",
-    ],
+    srcs = ["lib.rs"],
     crate_name = "sample",
     crate_root = "lib.rs",
     edition = "2021",
@@ -35,5 +31,17 @@ rust_test(
     srcs = ["manifest.test.rs"],
     crate_name = "manifest_override",
     crate_root = "manifest.test.rs",
+    edition = "2021",
+)
+
+rust_test(
+    name = "sample_test",
+    srcs = [
+        "lib.rs",
+        "manifest.test.rs",
+        "shared.test.rs",
+    ],
+    crate_name = "sample",
+    crate_root = "lib.rs",
     edition = "2021",
 )

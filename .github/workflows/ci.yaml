@@ -105,6 +105,12 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Grouped source-based unit tests end-to-end
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel }}
+          BAZEL: bazelisk
+        run: examples/basic/test.sh
+
       - name: Bazel-only catalog end-to-end
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel }}
