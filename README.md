@@ -31,6 +31,37 @@ local_path_override(module_name = "gazelle_rs", path = "../gazelle_rs")
 bazel_dep(name = "gazelle", version = "0.51.3")
 bazel_dep(name = "rules_rs", version = "0.0.111")
 bazel_dep(name = "llvm", version = "0.8.18")
+bazel_dep(name = "rules_go", version = "0.62.0", dev_dependency = True)
+```
+
+The root module must register toolchains for the plugin's Go, Rust, C++, and
+prost builds. If your workspace does not already configure them, add:
+
+```starlark
+# Root modules select the toolchains used to build the plugin.
+register_toolchains("@llvm//toolchain:all", dev_dependency = True)
+
+toolchains = use_extension(
+    "@rules_rs//rs/toolchains:module_extension.bzl",
+    "toolchains",
+    dev_dependency = True,
+)
+toolchains.toolchain(
+    edition = "2024",
+    version = "1.95.0",
+)
+use_repo(toolchains, "default_rust_toolchains")
+register_toolchains("@default_rust_toolchains//...", dev_dependency = True)
+
+rules_rust_prost = use_extension(
+    "@rules_rs//rs:rules_rust_prost.bzl",
+    "rules_rust_prost",
+)
+use_repo(rules_rust_prost, "rules_rust_prost")
+register_toolchains("@rules_rust_prost//:default_prost_toolchain", dev_dependency = True)
+
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk", dev_dependency = True)
+go_sdk.download(version = "1.24.12")
 ```
 
 Compose a Gazelle binary in `BUILD.bazel`:
@@ -46,7 +77,8 @@ gazelle_binary(
 gazelle(name = "gazelle", gazelle = ":gazelle_bin")
 ```
 
-The plugin inherits the reference project's hermetic Rust/LLVM toolchain setup.
+The setup above uses hermetic Rust/LLVM toolchains. Toolchain pins in
+`gazelle_rs` itself are development-only and do not propagate to consumers.
 Bazel reads the consumer's `.bazelrc`, so copy these settings there:
 
 ```text
