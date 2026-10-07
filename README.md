@@ -384,9 +384,10 @@ include this file in the library with `mod` or `#[path]`. Run Gazelle to create 
 standalone roots in `tests/*.rs`, Cargo test declarations, and explicit BUILD
 test roots continue to work.
 
-Standalone tests can only access the library's public API. Tests requiring
-private-item access can remain in manually maintained owner-based targets. They
-may live in adjacent files without per-file exclusions:
+For ordinary library unit tests, prefer one explicit owner-based test target
+running adjacent `.test.rs` modules together. This preserves Rust's normal module
+privacy and avoids a separate test binary per source file. Attach each file to
+its owning module without per-file exclusions:
 
 ```rust
 #[cfg(test)]
@@ -396,7 +397,9 @@ mod tests;
 
 One explicit `rust_test(crate = ":owner")` runs the owner's test modules together;
 separate files do not require separate targets. Gazelle does not create or update
-that owner-based target.
+that owner-based target. Use independent standalone test crates when a consumer
+boundary, separate dependencies, or different runtime configuration is useful;
+those tests can access only the library's public API.
 
 Remove an old owner-based target only after its replacement builds and runs;
 Gazelle does not delete or convert it automatically. When retaining its target

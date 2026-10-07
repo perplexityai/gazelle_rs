@@ -1,4 +1,5 @@
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 rust_library(
     name = "computed",
@@ -7,4 +8,9 @@ rust_library(
         "lib.test.rs",
     ]}),
     crate_root = "lib.rs",
+)
+
+rust_test(
+    name = "computed_test",
+    crate = ":computed",
 )

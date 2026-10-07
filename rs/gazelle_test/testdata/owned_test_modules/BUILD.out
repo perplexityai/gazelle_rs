@@ -8,9 +8,7 @@ rust_library(
         "feature.test.rs",
         "lib.rs",
         "lib.test.rs",
-        "manifest.test.rs",
         "nested.test.rs",
-        "shared.test.rs",
         "src/lib.test.rs",
     ],
     crate_name = "sample",
@@ -21,29 +19,4 @@ rust_library(
 rust_test(
     name = "sample_unit",
     crate = ":sample",
-)
-
-rust_test(
-    name = "explicit_shared",
-    srcs = ["shared.test.rs"],
-    crate_name = "explicit_shared",
-    crate_root = "shared.test.rs",
-    edition = "2021",
-)
-
-rust_test(
-    name = "api_test",
-    srcs = ["api.test.rs"],
-    crate_name = "api_test",
-    crate_root = "api.test.rs",
-    edition = "2021",
-    deps = [":sample"],
-)
-
-rust_test(
-    name = "manifest_override",
-    srcs = ["manifest.test.rs"],
-    crate_name = "manifest_override",
-    crate_root = "manifest.test.rs",
-    edition = "2021",
 )

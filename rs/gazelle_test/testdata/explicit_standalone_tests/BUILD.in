@@ -8,6 +8,7 @@ rust_library(
 )
 
 rust_test(
-    name = "sample_unit",
-    crate = ":sample",
+    name = "explicit_shared",
+    srcs = ["shared.test.rs"],
+    crate_root = "shared.test.rs",
 )
