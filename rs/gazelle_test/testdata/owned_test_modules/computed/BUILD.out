@@ -1,0 +1,10 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "computed",
+    srcs = select({"//conditions:default": [
+        "lib.rs",
+        "lib.test.rs",
+    ]}),
+    crate_root = "lib.rs",
+)
