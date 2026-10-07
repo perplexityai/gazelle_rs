@@ -177,3 +177,57 @@ rust_library(
 		}
 	}
 }
+
+func TestIncompleteOwnerDoesNotDiscoverStandaloneTests(t *testing.T) {
+	gazelleBin, err := runfiles.Rlocation(*gazelleBinaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ name, source string }{
+		{"missing_module", "mod missing;"},
+		{"invalid_syntax", "pub fn broken( {"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			build := `load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_library(
+    name = "sample",
+    srcs = ["lib.rs"],
+    crate_root = "lib.rs",
+)
+
+rust_test(
+    name = "explicit_test",
+    srcs = ["explicit.test.rs"],
+    crate_root = "explicit.test.rs",
+)
+`
+			for name, contents := range map[string]string{
+				"MODULE.bazel": "", "BUILD.bazel": build, "lib.rs": tc.source,
+				"private.test.rs": "use super::*;", "explicit.test.rs": "fn helper() {}",
+			} {
+				if err := os.WriteFile(filepath.Join(root, name), []byte(contents), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cmd := exec.Command(gazelleBin, "-repo_root="+root, root)
+			cmd.Dir = root
+			output, err := cmd.CombinedOutput()
+			if err != nil || !strings.Contains(string(output), "leaving target unchanged") {
+				t.Fatalf("exit: %v; output: %s", err, output)
+			}
+			got, err := os.ReadFile(filepath.Join(root, "BUILD.bazel"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(got), `name = "private_test"`) {
+				t.Fatalf("incomplete ownership generated a standalone test: %s", got)
+			}
+			if !strings.Contains(string(got), `crate_name = "explicit_test"`) {
+				t.Fatalf("explicit test was not regenerated: %s", got)
+			}
+		})
+	}
+}

@@ -10,4 +10,5 @@ message CrateResult {
   repeated string imports = 2;
   repeated string test_imports = 3;
   bool has_tests = 4;
+  repeated string test_sources = 5;
 }

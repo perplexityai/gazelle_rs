@@ -107,7 +107,11 @@ Gazelle Resolve       → overrides / internal index → deps / proc_macro_deps
 The conventional roots are `src/lib.rs` or `lib.rs`, and `src/main.rs` or
 `main.rs`. A package containing both gets `<name>` and `<name>_bin` targets.
 `src/bin/*.rs`, `src/bin/*/main.rs`, and `tests/*.rs` are discovered too.
-Standalone `*.test.rs` and `src/*.test.rs` roots are discovered as well.
+Standalone `*.test.rs` and `src/*.test.rs` roots are discovered as well. A file
+reachable through a library, binary, or procedural macro's module graph remains
+part of that crate instead of receiving an inferred standalone target. This
+includes test and feature-gated modules and literal `#[path]` attributes.
+Explicit BUILD test targets and Cargo test declarations still take precedence.
 Test targets use the filename stem plus `_test` (`api.test.rs` becomes `api_test`). Subdirectories owned
 by a crate do not generate duplicate crates.
 
@@ -116,9 +120,31 @@ literal `#[path = "..."]` attributes. Only reachable source files become
 `srcs`. It collects `use` trees, re-exports, `extern crate`, qualified expression
 and type paths, qualified macro invocations, expression-list macro arguments, and qualified derive paths. It
 ignores standard-library paths, local modules, and imported aliases in ordinary
-qualified expressions. Direct `#[cfg(test)]` imports are separated from ordinary
-dependencies. Only standalone test crates receive generated `rust_test` targets;
-inline tests do not create additional targets.
+qualified expressions. Test-only sources and imports are separated from production
+sources and dependencies, including `cfg(all(test, ...))`. A source reachable from
+both production and test modules stays in the production set.
+
+A library or binary with test-only module files gets one `<name>_test` target.
+The production target contains production sources/dependencies only; the test
+target compiles the same `crate_root` with the complete source graph and both
+production and test dependencies. This keeps private-state tests in the same
+Rust crate without putting test files in the library. Existing source-based test
+targets for that root retain their names and feature variants; no extra default
+target is added. Inline tests alone do not create a target.
+
+New unit-test targets copy the owning target's crate name, edition, features,
+compile data, Rust flags, and environment attributes. Subsequent edits to those
+explicit test settings remain user-owned. Libraries with computed dependencies
+need an explicit source-based test rule and emit a diagnostic instead of guessing
+its dependency expressions. Procedural macro unit-test targets remain explicit.
+Legacy `rust_test(crate = ...)` rules and libraries supplying their test-only
+sources remain unchanged: migrate them to explicit `srcs` and the same
+`crate_root` to adopt source partitioning. `crate` and `srcs` cannot be combined.
+
+Production roots with computed
+`srcs` still participate in ownership discovery without regenerating their rules.
+If a production graph cannot be parsed, inferred `.test.rs` discovery in that
+package is deferred; explicit test targets continue to be processed.
 
 Explicit rules with literal sources and crate roots retain their names and
 crate names. Unrelated attributes survive Gazelle's merge. Computed `srcs`
@@ -312,8 +338,10 @@ This is source-level dependency inference, not Cargo or rustc execution. It does
 not expand macros, execute build scripts, discover `include!` inputs, evaluate
 feature/platform `cfg` expressions, or translate Cargo dependency tables into
 external repositories. Feature/platform branches are inspected conservatively;
-all declared module files must exist. Only direct `cfg(test)` is separated as
-test-only. Macro-generated imports and unusual lexical shadowing may need
+all declared module files must exist. A `cfg` expression is test-only when it
+is guaranteed false without `test`; unknown feature/platform predicates stay
+conservative (for example, `cfg(any(test, feature = "extra"))` is production-capable).
+Macro-generated imports and unusual lexical shadowing may need
 explicit BUILD maintenance. Existing computed source rules are indexed by
 crate name but not regenerated. Workspace-inherited Cargo metadata, auto-target
 disabling flags, examples/benches, and nested independently built crates inside
@@ -377,8 +405,23 @@ include this file in the library with `mod` or `#[path]`. Run Gazelle to create 
 standalone roots in `tests/*.rs`, Cargo test declarations, and explicit BUILD
 test roots continue to work.
 
-Standalone tests can only access the library's public API. Tests requiring
-private-item access can remain in manually maintained owner-based targets.
+For ordinary library unit tests, prefer one explicit owner-based test target
+running adjacent `.test.rs` modules together. This preserves Rust's normal module
+privacy and avoids a separate test binary per source file. Attach each file to
+its owning module without per-file exclusions:
+
+```rust
+#[cfg(test)]
+#[path = "widget.test.rs"]
+mod tests;
+```
+
+One explicit `rust_test(crate = ":owner")` runs the owner's test modules together;
+separate files do not require separate targets. Gazelle does not create or update
+that owner-based target. Use independent standalone test crates when a consumer
+boundary, separate dependencies, or different runtime configuration is useful;
+those tests can access only the library's public API.
+
 Remove an old owner-based target only after its replacement builds and runs;
 Gazelle does not delete or convert it automatically. When retaining its target
 name, replace `crate` with the new `crate_root` and `srcs` before generation.

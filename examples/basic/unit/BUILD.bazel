@@ -1,0 +1,23 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_library(
+    name = "unit",
+    srcs = ["lib.rs"],
+    crate_name = "unit",
+    crate_root = "lib.rs",
+    edition = "2021",
+)
+
+rust_test(
+    name = "unit_test",
+    srcs = [
+        "first.test.rs",
+        "lib.rs",
+        "second.test.rs",
+    ],
+    crate_name = "unit",
+    crate_root = "lib.rs",
+    edition = "2021",
+    deps = ["//api"],
+)

@@ -1,0 +1,11 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+# gazelle:resolve rs runtime //deps:runtime
+# gazelle:resolve rs optional_dep //deps:optional
+# gazelle:resolve rs test_support //deps:test_support
+# gazelle:resolve rs helper_dep //deps:helper
+
+rust_library(name = "sample", srcs = ["lib.rs"], crate_root = "lib.rs")
+rust_test(name = "checks", srcs = ["lib.rs"], crate_root = "lib.rs")
+rust_test(name = "checks_optional", srcs = ["lib.rs"], crate_root = "lib.rs", crate_features = ["optional"])

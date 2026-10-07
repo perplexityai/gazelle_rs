@@ -1,0 +1,8 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_library(
+    name = "sample",
+    srcs = ["lib.rs"],
+    crate_root = "lib.rs",
+)

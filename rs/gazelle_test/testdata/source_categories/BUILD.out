@@ -1,0 +1,64 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+# gazelle:resolve rs runtime //deps:runtime
+# gazelle:resolve rs optional_dep //deps:optional
+# gazelle:resolve rs test_support //deps:test_support
+# gazelle:resolve rs helper_dep //deps:helper
+
+rust_library(
+    name = "sample",
+    srcs = [
+        "lib.rs",
+        "optional.rs",
+        "shared.rs",
+    ],
+    crate_name = "sample",
+    crate_root = "lib.rs",
+    edition = "2021",
+    deps = [
+        "//deps:optional",
+        "//deps:runtime",
+    ],
+)
+
+rust_test(
+    name = "checks",
+    srcs = [
+        "checks.test.rs",
+        "helper.rs",
+        "lib.rs",
+        "optional.rs",
+        "shared.rs",
+    ],
+    crate_name = "checks",
+    crate_root = "lib.rs",
+    edition = "2021",
+    deps = [
+        "//deps:helper",
+        "//deps:optional",
+        "//deps:runtime",
+        "//deps:test_support",
+    ],
+)
+
+rust_test(
+    name = "checks_optional",
+    srcs = [
+        "checks.test.rs",
+        "helper.rs",
+        "lib.rs",
+        "optional.rs",
+        "shared.rs",
+    ],
+    crate_features = ["optional"],
+    crate_name = "checks_optional",
+    crate_root = "lib.rs",
+    edition = "2021",
+    deps = [
+        "//deps:helper",
+        "//deps:optional",
+        "//deps:runtime",
+        "//deps:test_support",
+    ],
+)

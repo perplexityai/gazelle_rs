@@ -7,19 +7,55 @@ use std::{
 };
 use syn::parse::Parser;
 use syn::{
-    visit::{self, Visit},
     Attribute, Item, UseTree,
+    visit::{self, Visit},
 };
 
 type Names = BTreeSet<String>;
 fn ident(id: &syn::Ident) -> String {
     id.to_string().trim_start_matches("r#").into()
 }
+// Evaluate only what is known when compiling without the test harness.
+fn without_test(meta: &syn::Meta) -> Option<bool> {
+    match meta {
+        syn::Meta::Path(p) if p.is_ident("test") => Some(false),
+        syn::Meta::List(list) => {
+            let args = list
+                .parse_args_with(
+                    syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+                )
+                .ok()?;
+            let values: Vec<_> = args.iter().map(without_test).collect();
+            if list.path.is_ident("all") {
+                if values.contains(&Some(false)) {
+                    Some(false)
+                } else if values.iter().all(|v| *v == Some(true)) {
+                    Some(true)
+                } else {
+                    None
+                }
+            } else if list.path.is_ident("any") {
+                if values.contains(&Some(true)) {
+                    Some(true)
+                } else if values.iter().all(|v| *v == Some(false)) {
+                    Some(false)
+                } else {
+                    None
+                }
+            } else if list.path.is_ident("not") && values.len() == 1 {
+                values[0].map(|v| !v)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
 fn test_only(attrs: &[Attribute]) -> bool {
     attrs.iter().any(|a| {
         a.path().is_ident("cfg")
-            && a.parse_args::<syn::Path>()
-                .is_ok_and(|p| p.is_ident("test"))
+            && a.parse_args::<syn::Meta>()
+                .is_ok_and(|m| without_test(&m) == Some(false))
     })
 }
 fn bindings(tree: &UseTree, names: &mut Names, parent: Option<&syn::Ident>) {
@@ -169,6 +205,7 @@ fn locals(items: &[Item]) -> Names {
 
 struct Extractor {
     sources: Names,
+    production_sources: Names,
     imports: Names,
     test_imports: Names,
     has_tests: bool,
@@ -185,6 +222,11 @@ impl Extractor {
         self.sources.insert(file.to_string_lossy().into_owned());
         let text = fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?;
         let ast = syn::parse_file(&text).map_err(|e| format!("{}: {e}", file.display()))?;
+        let testing = testing || test_only(&ast.attrs);
+        if !testing {
+            self.production_sources
+                .insert(file.to_string_lossy().into_owned());
+        }
         self.items(&ast.items, module_dir, file.parent().unwrap(), testing)?;
         self.active.remove(&key);
         Ok(())
@@ -496,6 +538,7 @@ pub fn extract(root: &str) -> Result<pb::CrateResult, String> {
     let root = PathBuf::from(root);
     let mut extractor = Extractor {
         sources: Names::new(),
+        production_sources: Names::new(),
         imports: Names::new(),
         test_imports: Names::new(),
         has_tests: false,
@@ -508,6 +551,11 @@ pub fn extract(root: &str) -> Result<pb::CrateResult, String> {
         false,
     )?;
     Ok(pb::CrateResult {
+        test_sources: extractor
+            .sources
+            .difference(&extractor.production_sources)
+            .cloned()
+            .collect(),
         sources: extractor.sources.into_iter().collect(),
         imports: extractor.imports.into_iter().collect(),
         test_imports: extractor.test_imports.into_iter().collect(),

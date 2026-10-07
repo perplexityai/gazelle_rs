@@ -1,0 +1,28 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+rust_library(
+    name = "sample",
+    srcs = [
+        "detail.rs",
+        "lib.rs",
+    ],
+    crate_name = "sample",
+    crate_root = "lib.rs",
+    edition = "2021",
+)
+
+rust_test(
+    name = "sample_test",
+    srcs = [
+        "detail.rs",
+        "feature.test.rs",
+        "lib.rs",
+        "lib.test.rs",
+        "nested.test.rs",
+        "src/lib.test.rs",
+    ],
+    crate_name = "sample",
+    crate_root = "lib.rs",
+    edition = "2021",
+)
