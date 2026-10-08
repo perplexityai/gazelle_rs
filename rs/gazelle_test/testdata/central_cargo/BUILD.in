@@ -1,0 +1,1 @@
+# gazelle:rust_cargo_lock @vendor Cargo.toml Cargo.lock exceptions.json

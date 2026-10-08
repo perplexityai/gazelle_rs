@@ -1,0 +1,2 @@
+[workspace.dependencies]
+renamed = { package = "codec", version = "1" }
