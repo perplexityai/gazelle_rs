@@ -22,6 +22,21 @@
       "aliases": [
         "@fixture_crates//:derive_impl"
       ]
+    },
+    {
+      "name": "plain",
+      "label": "@fixture_crates//:plain-1.0.0",
+      "aliases": [
+        "@fixture_crates//:plain",
+        "@fixture_crates//:plain_v1"
+      ]
+    },
+    {
+      "name": "plain",
+      "label": "@fixture_crates//:plain-2.0.0",
+      "aliases": [
+        "@fixture_crates//:plain_v2"
+      ]
     }
   ]
 }

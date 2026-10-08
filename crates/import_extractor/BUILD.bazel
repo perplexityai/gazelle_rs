@@ -24,6 +24,7 @@ _LIB_DEPS = [
     # they're distinct repo instances and Rust treats them as different types.
     "@rules_rs//rs/private/prost:prost_runtime",
     "@gazelle_rs_crates//:syn",
+    "@gazelle_rs_crates//:semver",
 ]
 
 # rlib variant — linked through cgo by //rs and used by the unit tests.

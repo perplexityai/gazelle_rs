@@ -17,6 +17,12 @@ imports under `-strict`.
 The script restores the committed consumer BUILD on exit. CI runs it on both
 supported Bazel versions alongside the other examples.
 
+Central-manifest coverage also generates fresh consumers without BUILD dependencies
+or aliases. A root-selected version uses the hub's unversioned alias even with a
+newer transitive version in the lockfile. Renamed imports compile against that
+selection. Adding a second direct version verifies that distinct versioned labels
+keep the two APIs separate; each generated test asserts the version it executes.
+
 The visibility E2E builds a cross-package dependency allowed by
 `package(default_visibility)` and verifies that a library without a visibility
 override remains inaccessible from another package.

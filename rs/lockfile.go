@@ -8,16 +8,18 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/label"
 )
 
-// Central manifests describe import aliases; the lockfile supplies resolved
+// Central manifests select direct dependencies; the lockfile supplies resolved
 // versions. Neither describes library target names or procedural macro kinds.
 func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*cargoIndex, error) {
 	if !repositoryName.MatchString(repository) {
 		return nil, fmt.Errorf("invalid Cargo repository %q", repository)
 	}
 	type dependency struct {
-		Package string
-		Path    string
-		Git     string
+		Package   string
+		Version   string
+		Path      string
+		Git       string
+		Workspace bool
 	}
 	var manifest struct {
 		Dependencies map[string]toml.Primitive
@@ -27,20 +29,23 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 	if err != nil {
 		return nil, fmt.Errorf("read central Cargo manifest: %w", err)
 	}
-	aliases := map[string][]string{}
+	declarations := map[string]dependency{}
 	for _, deps := range []map[string]toml.Primitive{manifest.Workspace.Dependencies, manifest.Dependencies} {
 		for name, raw := range deps {
 			var version string
-			if md.PrimitiveDecode(raw, &version) == nil {
-				continue
-			}
 			var dep dependency
-			if err := md.PrimitiveDecode(raw, &dep); err != nil {
+			if md.PrimitiveDecode(raw, &version) == nil {
+				dep.Version = version
+			} else if err := md.PrimitiveDecode(raw, &dep); err != nil {
 				return nil, fmt.Errorf("dependency %s: %w", name, err)
 			}
-			if dep.Package != "" && dep.Path == "" && dep.Git == "" {
-				aliases[dep.Package] = append(aliases[dep.Package], crateName(name))
+			if dep.Workspace {
+				continue
 			}
+			if dep.Package == "" {
+				dep.Package = name
+			}
+			declarations[name] = dep
 		}
 	}
 	var lock struct {
@@ -63,6 +68,11 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 	}
 	sources := map[string]string{}
 	unversioned := map[string][]externalCrate{}
+	type lockedCrate struct {
+		version string
+		crate   externalCrate
+	}
+	locked := map[string][]lockedCrate{}
 	for _, pkg := range lock.Package {
 		// Workspace and git packages have no portable versioned hub-label convention.
 		if !strings.HasPrefix(pkg.Source, "registry+") && !strings.HasPrefix(pkg.Source, "sparse+") {
@@ -86,9 +96,7 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 		index.byLabel[key] = c
 		index.byLabel[c.label.String()] = c
 		index.crates[c.name] = appendCrate(index.crates[c.name], c)
-		for _, alias := range aliases[pkg.Name] {
-			index.crates[alias] = appendCrate(index.crates[alias], c)
-		}
+		locked[pkg.Name] = append(locked[pkg.Name], lockedCrate{pkg.Version, c})
 		alias := label.New(strings.TrimPrefix(repository, "@"), "", pkg.Name).String()
 		unversioned[alias] = appendCrate(unversioned[alias], c)
 	}
@@ -106,6 +114,46 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 		for key, c := range exceptions.byLabel {
 			index.byLabel[key] = c
 		}
+	}
+
+	selected := map[string][]externalCrate{}
+	packageSelections := map[string][]externalCrate{}
+	for name, dep := range declarations {
+		if dep.Path != "" || dep.Git != "" || dep.Version == "" {
+			continue
+		}
+		if _, err := cargoVersionMatches(dep.Version, "0.0.0"); err != nil {
+			return nil, fmt.Errorf("dependency %s: %w", name, err)
+		}
+		// A declaration with no locked match must not fall back to an incompatible version.
+		selected[name] = nil
+		for _, candidate := range locked[dep.Package] {
+			matches, err := cargoVersionMatches(dep.Version, candidate.version)
+			if err != nil {
+				return nil, fmt.Errorf("dependency %s: %w", name, err)
+			}
+			if matches {
+				selected[name] = appendCrate(selected[name], candidate.crate)
+				packageSelections[dep.Package] = appendCrate(packageSelections[dep.Package], candidate.crate)
+			}
+		}
+	}
+	for name, candidates := range selected {
+		dep := declarations[name]
+		for i, c := range candidates {
+			// Multiple direct versions cannot safely share one default hub alias.
+			// Catalog labels are explicit and retain their original spelling.
+			if len(packageSelections[dep.Package]) == 1 && c.inferred {
+				c.label = label.New(strings.TrimPrefix(repository, "@"), "", dep.Package)
+				index.byLabel[c.label.String()] = c
+				candidates[i] = c
+			}
+		}
+		importName := crateName(name)
+		if name == dep.Package && len(candidates) == 1 && !candidates[0].inferred {
+			importName = candidates[0].name
+		}
+		index.crates[importName] = candidates
 	}
 	return index, nil
 }

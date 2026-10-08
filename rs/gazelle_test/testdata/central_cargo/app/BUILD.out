@@ -4,11 +4,11 @@ rust_library(
     name = "app",
     srcs = ["lib.rs"],
     aliases = {
-        "@vendor//:wire-codec-2.0.0": "renamed",
+        "@vendor//:wire-codec": "renamed",
     },
     crate_name = "app",
     crate_root = "lib.rs",
     edition = "2021",
     proc_macro_deps = ["@vendor//:derive-package-1.0.0"],
-    deps = ["@vendor//:wire-codec-2.0.0"],
+    deps = ["@vendor//:wire-codec"],
 )
