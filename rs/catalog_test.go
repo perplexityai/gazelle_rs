@@ -75,3 +75,24 @@ func TestRejectInvalidCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestProcMacroDirectiveScope(t *testing.T) {
+	c := config.New()
+	c.RepoRoot = t.TempDir()
+	language := NewLanguage()
+	root := rule.EmptyFile("BUILD.bazel", "")
+	root.Directives = []rule.Directive{{Key: "rust_proc_macro", Value: "derive_one"}}
+	language.Configure(c, "", root)
+	child := c.Clone()
+	nested := rule.EmptyFile("child/BUILD.bazel", "child")
+	nested.Directives = []rule.Directive{{Key: "rust_proc_macro", Value: "derive_two"}}
+	language.Configure(child, "child", nested)
+	if !getConfig(child).procMacros["derive_one"] || !getConfig(child).procMacros["derive_two"] {
+		t.Fatal("child did not inherit and extend proc-macro classification")
+	}
+	sibling := c.Clone()
+	language.Configure(sibling, "sibling", rule.EmptyFile("sibling/BUILD.bazel", "sibling"))
+	if !getConfig(sibling).procMacros["derive_one"] || getConfig(sibling).procMacros["derive_two"] {
+		t.Fatal("child directive leaked into sibling configuration")
+	}
+}

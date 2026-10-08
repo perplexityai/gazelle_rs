@@ -25,7 +25,12 @@ cmp "$scratch/BUILD.expected" consumer/BUILD.bazel
 "$bazel_cmd" run //:gazelle -- -strict -mode=diff consumer
 
 # The same consumer (without a manifest) also resolves through central Cargo files.
-sed 's/# gazelle:rust_crate_catalog crates.json/# gazelle:rust_cargo_lock @fixture_crates Cargo.toml Cargo.lock crates.json/' "$scratch/root.BUILD" > BUILD.bazel
+sed 's/# gazelle:rust_crate_catalog crates.json/# gazelle:rust_cargo_lock @fixture_crates Cargo.toml Cargo.lock/' "$scratch/root.BUILD" > BUILD.bazel
+cat >> BUILD.bazel <<'DIRECTIVES'
+# gazelle:resolve rs wire_codec @fixture_crates//:codec-2.0.0
+# gazelle:resolve_regexp rs ^wire_derive$ @fixture_crates//:derive-1.0.0
+# gazelle:rust_proc_macro wire_derive
+DIRECTIVES
 cp consumer/BUILD.seed consumer/BUILD.bazel
 "$bazel_cmd" run //:gazelle -- -strict consumer
 cmp "$scratch/BUILD.expected" consumer/BUILD.bazel

@@ -42,9 +42,10 @@ type cargoMetadata struct {
 }
 
 type externalCrate struct {
-	label label.Label
-	name  string
-	macro bool
+	label    label.Label
+	name     string
+	macro    bool
+	inferred bool
 }
 
 type cargoIndex struct {

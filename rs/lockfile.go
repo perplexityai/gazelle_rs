@@ -77,7 +77,7 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 			return nil, fmt.Errorf("locked packages from different registries collide at %s", key)
 		}
 		sources[key] = pkg.Source
-		c := externalCrate{label: l, name: crateName(pkg.Name)}
+		c := externalCrate{label: l, name: crateName(pkg.Name), inferred: true}
 		if exceptions != nil {
 			if replacement, ok := exceptions.byLabel[key]; ok {
 				c = replacement

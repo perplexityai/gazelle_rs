@@ -482,3 +482,26 @@ select a consumer's version: existing BUILD dependencies or `gazelle:resolve`
 choose between candidates, and strict generation reports unresolved ambiguity.
 This also applies to renamed dependencies. Use Cargo metadata resolution when
 package-specific Cargo feature/version selection is desired instead.
+
+For repositories that standardize imports on actual Rust library names, ordinary
+Gazelle directives can replace the exceptions catalog entirely:
+
+```starlark
+# gazelle:rust_cargo_lock @crates Cargo.toml Cargo.lock
+# gazelle:resolve rs actual_library @crates//:different-package-1.0.0
+# gazelle:resolve_regexp rs ^vendor_(.*)$ @vendor//:$1
+# gazelle:rust_proc_macro serde_derive tokio_macros
+```
+
+`resolve` and `resolve_regexp` map imports to labels. `rust_proc_macro` separately
+classifies whitespace-separated import names as compiler plugins, placing them
+in `proc_macro_deps` rather than `deps`. It inherits into child packages; child
+directives add names without changing sibling scopes. It neither adds unused
+dependencies nor determines their labels. Internal indexed proc-macro rules and
+explicit catalog/metadata classifications continue to work without this directive.
+
+An explicit mapping is authoritative about the import name when Cargo.lock only
+inferred a name from the package. It does not create a rename alias from that
+guess. Actual renamed imports should use explicit BUILD `aliases` or central
+manifest dependency renames. Prefer exact mappings for isolated exceptions and
+regex mappings only for a real label-naming convention; neither guesses versions.
