@@ -444,3 +444,41 @@ To keep newly generated targets public, explicitly configure
 An empty `# gazelle:rust_visibility` clears an inherited override and restores
 package-default behavior. This changes visibility only for newly discovered
 targets; Gazelle does not narrow existing public targets automatically.
+
+### Central manifest and lockfile
+
+Repositories with versioned crate-hub labels can avoid a full generated catalog:
+
+```starlark
+# gazelle:rust_cargo_lock @crates Cargo.toml Cargo.lock crate_exceptions.json
+```
+
+Paths are workspace-relative; the final exceptions path is optional. Gazelle
+reads these files directly, without invoking Cargo or requiring manifests in
+consumer packages. Registry packages in the lockfile use the convention
+`@crates//:<package>-<version>` and a Rust import name with hyphens replaced by
+underscores. Renamed dependencies in the central `[dependencies]` and
+`[workspace.dependencies]` tables become import aliases.
+
+This is an opt-in convention, not an inspection of external crate sources. The
+manifest and lockfile do not expose library target names or procedural-macro
+kinds. Record those exceptions using the existing version-1 crate catalog format:
+
+```json
+{"version":1,"crates":[
+  {"name":"derive_api","label":"@crates//:derive-package-1.0.0","proc_macro":true}
+]}
+```
+
+An exception replaces inference for its label. For a custom label, include the
+conventional versioned label in its `aliases` array. Exceptions may also supply
+git dependencies; workspace/path and git packages are not inferred as registry
+labels. Conflicting registry sources for the same package/version are rejected.
+The crate hub must actually export the conventional labels, and imports from
+non-library packages still need an explicit mapping.
+
+All locked versions remain candidates. Manifest version requirements do not
+select a consumer's version: existing BUILD dependencies or `gazelle:resolve`
+choose between candidates, and strict generation reports unresolved ambiguity.
+This also applies to renamed dependencies. Use Cargo metadata resolution when
+package-specific Cargo feature/version selection is desired instead.

@@ -9,6 +9,7 @@ go_library(
         "generate.go",
         "import_extractor.go",
         "language.go",
+        "lockfile.go",
         "mappings.go",
         "resolve.go",
     ],
@@ -46,6 +47,7 @@ go_test(
         "cargo_test.go",
         "catalog_test.go",
         "generate_test.go",
+        "lockfile_test.go",
         "mappings_test.go",
     ],
     clinkopts = select({

@@ -1,0 +1,13 @@
+version = 4
+[[package]]
+name = "codec"
+version = "1.0.0"
+source = "registry+https://example.invalid/index"
+[[package]]
+name = "codec"
+version = "2.0.0"
+source = "registry+https://example.invalid/index"
+[[package]]
+name = "derive"
+version = "1.0.0"
+source = "registry+https://example.invalid/index"

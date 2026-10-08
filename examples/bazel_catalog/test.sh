@@ -6,8 +6,10 @@ scratch="$(mktemp -d)"
 unresolved="$(mktemp -d e2e_unresolved_XXXXXX)"
 visibility="$(mktemp -d e2e_visibility_XXXXXX)"
 cp consumer/BUILD.bazel "$scratch/BUILD.expected"
+cp BUILD.bazel "$scratch/root.BUILD"
 cleanup() {
     cp "$scratch/BUILD.expected" consumer/BUILD.bazel
+    cp "$scratch/root.BUILD" BUILD.bazel
     rm -rf "$scratch" "$unresolved" "$visibility"
 }
 trap cleanup EXIT
@@ -21,6 +23,15 @@ cp consumer/BUILD.seed consumer/BUILD.bazel
 cmp "$scratch/BUILD.expected" consumer/BUILD.bazel
 "$bazel_cmd" test //consumer:all
 "$bazel_cmd" run //:gazelle -- -strict -mode=diff consumer
+
+# The same consumer (without a manifest) also resolves through central Cargo files.
+sed 's/# gazelle:rust_crate_catalog crates.json/# gazelle:rust_cargo_lock @fixture_crates Cargo.toml Cargo.lock crates.json/' "$scratch/root.BUILD" > BUILD.bazel
+cp consumer/BUILD.seed consumer/BUILD.bazel
+"$bazel_cmd" run //:gazelle -- -strict consumer
+cmp "$scratch/BUILD.expected" consumer/BUILD.bazel
+"$bazel_cmd" test //consumer:all
+"$bazel_cmd" run //:gazelle -- -strict -mode=diff consumer
+cp "$scratch/root.BUILD" BUILD.bazel
 
 # Package defaults, rather than generated public attributes, control cross-package access.
 mkdir -p "$visibility/public_api" "$visibility/private_api" "$visibility/client"

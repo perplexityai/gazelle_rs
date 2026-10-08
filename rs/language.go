@@ -56,7 +56,7 @@ func getConfig(c *config.Config) *rustConfig {
 	return &rustConfig{enabled: true, edition: "2021"}
 }
 func (*rustLang) KnownDirectives() []string {
-	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog"}
+	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog", "rust_cargo_lock"}
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
@@ -81,6 +81,23 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				cfg.crateName = d.Value
 			case "rust_visibility":
 				cfg.visibility = strings.Fields(d.Value)
+			case "rust_cargo_lock":
+				args := strings.Fields(d.Value)
+				cfg.cargo = nil
+				if len(args) < 3 || len(args) > 4 {
+					diagnostic(c, "gazelle_rs: %s: expected rust_cargo_lock @repository Cargo.toml Cargo.lock [exceptions.json]", rel)
+					continue
+				}
+				exceptions := ""
+				if len(args) == 4 {
+					exceptions = filepath.Join(c.RepoRoot, args[3])
+				}
+				index, err := loadCargoLock(args[0], filepath.Join(c.RepoRoot, args[1]), filepath.Join(c.RepoRoot, args[2]), exceptions)
+				if err != nil {
+					diagnostic(c, "gazelle_rs: %s: %v", rel, err)
+					continue
+				}
+				cfg.cargo = index
 			case "rust_crate_catalog":
 				cfg.cargo = nil
 				index, err := loadCrateCatalog(filepath.Join(c.RepoRoot, d.Value))
