@@ -11,3 +11,11 @@ source = "sparse+https://example.invalid/index"
 name = "derive"
 version = "1.0.0"
 source = "sparse+https://example.invalid/index"
+[[package]]
+name = "plain"
+version = "1.0.0"
+source = "sparse+https://example.invalid/index"
+[[package]]
+name = "plain"
+version = "2.0.0"
+source = "sparse+https://example.invalid/index"

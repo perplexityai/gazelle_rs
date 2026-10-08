@@ -15,6 +15,7 @@ cargo = []
 [dependencies]
 syn.workspace = true
 prost.workspace = true
+semver.workspace = true
 # Keep derive compatible with rules_rs's prost runtime.
 prost-derive = "=0.13.1"
 

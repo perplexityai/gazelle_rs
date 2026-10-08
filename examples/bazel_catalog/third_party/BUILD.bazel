@@ -4,6 +4,11 @@ load("@rules_rs//rs:rust_proc_macro.bzl", "rust_proc_macro")
 package(default_visibility = ["//visibility:public"])
 
 alias(
+    name = "plain",
+    actual = ":plain-1.0.0",
+)
+
+alias(
     name = "codec-1.0.0",
     actual = ":codec_v1",
 )
@@ -39,5 +44,31 @@ rust_proc_macro(
     srcs = ["derive.rs"],
     crate_name = "wire_derive",
     crate_root = "derive.rs",
+    edition = "2021",
+)
+
+alias(
+    name = "plain-1.0.0",
+    actual = ":plain_v1",
+)
+
+alias(
+    name = "plain-2.0.0",
+    actual = ":plain_v2",
+)
+
+rust_library(
+    name = "plain_v1",
+    srcs = ["v1.rs"],
+    crate_name = "plain",
+    crate_root = "v1.rs",
+    edition = "2021",
+)
+
+rust_library(
+    name = "plain_v2",
+    srcs = ["v2.rs"],
+    crate_name = "plain",
+    crate_root = "v2.rs",
     edition = "2021",
 )

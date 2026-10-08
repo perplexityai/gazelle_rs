@@ -5,12 +5,15 @@ bazel_cmd="${BAZEL:-bazel}"
 scratch="$(mktemp -d)"
 unresolved="$(mktemp -d e2e_unresolved_XXXXXX)"
 visibility="$(mktemp -d e2e_visibility_XXXXXX)"
+defaults="$(mktemp -d e2e_defaults_XXXXXX)"
 cp consumer/BUILD.bazel "$scratch/BUILD.expected"
 cp BUILD.bazel "$scratch/root.BUILD"
+cp Cargo.toml "$scratch/Cargo.toml"
 cleanup() {
     cp "$scratch/BUILD.expected" consumer/BUILD.bazel
     cp "$scratch/root.BUILD" BUILD.bazel
-    rm -rf "$scratch" "$unresolved" "$visibility"
+    cp "$scratch/Cargo.toml" Cargo.toml
+    rm -rf "$scratch" "$unresolved" "$visibility" "$defaults"
 }
 trap cleanup EXIT
 
@@ -36,6 +39,29 @@ cp consumer/BUILD.seed consumer/BUILD.bazel
 cmp "$scratch/BUILD.expected" consumer/BUILD.bazel
 "$bazel_cmd" test //consumer:all
 "$bazel_cmd" run //:gazelle -- -strict -mode=diff consumer
+
+# Root requirements select v1 despite v2 also being locked. No BUILD deps or
+# aliases seed this resolution; compilation verifies the generated rename too.
+printf '#[test] fn selected_version() { assert_eq!(plain::VERSION, 1); }\n' > "$defaults/default.test.rs"
+printf '#[test] fn selected_version() { assert_eq!(renamed_plain::VERSION, 1); }\n' > "$defaults/renamed.test.rs"
+"$bazel_cmd" run //:gazelle -- -strict "$defaults"
+if ! grep -q '"@fixture_crates//:plain"' "$defaults/BUILD.bazel" || grep -q 'plain-[12]' "$defaults/BUILD.bazel"; then
+    cat "$defaults/BUILD.bazel" >&2
+    echo "central direct dependencies did not use the default alias" >&2
+    exit 1
+fi
+"$bazel_cmd" test "//$defaults:all"
+"$bazel_cmd" run //:gazelle -- -strict -mode=diff "$defaults"
+
+# Two direct versions need distinct labels, even when a default alias exists.
+printf '\nnewer = { package = "plain", version = "2" }\n' >> Cargo.toml
+printf '#[test] fn selected_version() { assert_eq!(newer::VERSION, 2); }\n' > "$defaults/newer.test.rs"
+rm "$defaults/BUILD.bazel"
+"$bazel_cmd" run //:gazelle -- -strict "$defaults"
+"$bazel_cmd" test "//$defaults:all"
+"$bazel_cmd" run //:gazelle -- -strict -mode=diff "$defaults"
+cp "$scratch/Cargo.toml" Cargo.toml
+rm -rf "$defaults"
 cp "$scratch/root.BUILD" BUILD.bazel
 
 # Package defaults, rather than generated public attributes, control cross-package access.

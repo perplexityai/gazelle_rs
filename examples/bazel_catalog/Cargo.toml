@@ -1,2 +1,4 @@
 [workspace.dependencies]
+plain = "1"
 renamed = { package = "codec", version = "1" }
+renamed_plain = { package = "plain", version = "1" }

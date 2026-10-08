@@ -447,7 +447,7 @@ targets; Gazelle does not narrow existing public targets automatically.
 
 ### Central manifest and lockfile
 
-Repositories with versioned crate-hub labels can avoid a full generated catalog:
+Repositories with conventional crate-hub labels can avoid a full generated catalog:
 
 ```starlark
 # gazelle:rust_cargo_lock @crates Cargo.toml Cargo.lock crate_exceptions.json
@@ -455,10 +455,18 @@ Repositories with versioned crate-hub labels can avoid a full generated catalog:
 
 Paths are workspace-relative; the final exceptions path is optional. Gazelle
 reads these files directly, without invoking Cargo or requiring manifests in
-consumer packages. Registry packages in the lockfile use the convention
-`@crates//:<package>-<version>` and a Rust import name with hyphens replaced by
-underscores. Renamed dependencies in the central `[dependencies]` and
-`[workspace.dependencies]` tables become import aliases.
+consumer packages. Direct dependencies declared in `[dependencies]` or
+`[workspace.dependencies]` use `@crates//:<package>` when their Cargo version
+requirements select one locked version. Multiple transitive versions in the
+lockfile do not prevent this. Renamed dependencies are filtered by their own
+requirements and generate Rust import aliases. Matching uses Cargo's `semver`
+implementation, including implicit caret ranges and prerelease rules.
+
+The hub must export the unversioned alias for that selected version. If the
+central manifest selects multiple direct versions of the same package, Gazelle
+keeps versioned labels for all of them rather than guessing which is the hub's
+default. Transitive-only packages also retain `@crates//:<package>-<version>`.
+Rust import names are inferred by replacing package-name hyphens with underscores.
 
 This is an opt-in convention, not an inspection of external crate sources. The
 manifest and lockfile do not expose library target names or procedural-macro
@@ -477,10 +485,11 @@ labels. Conflicting registry sources for the same package/version are rejected.
 The crate hub must actually export the conventional labels, and imports from
 non-library packages still need an explicit mapping.
 
-All locked versions remain candidates. Manifest version requirements do not
-select a consumer's version: existing BUILD dependencies or `gazelle:resolve`
-choose between candidates, and strict generation reports unresolved ambiguity.
-This also applies to renamed dependencies. Use Cargo metadata resolution when
+If a requirement matches multiple locked versions, existing BUILD dependencies
+can disambiguate; otherwise strict generation reports ambiguity. A requirement
+matching no locked version leaves the import unresolved instead of selecting an
+incompatible version. Explicit `gazelle:resolve` directives, catalog labels, and
+BUILD rename aliases remain authoritative. Use Cargo metadata resolution when
 package-specific Cargo feature/version selection is desired instead.
 
 For repositories that standardize imports on actual Rust library names, ordinary

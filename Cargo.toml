@@ -10,6 +10,7 @@ repository = "https://github.com/perplexityai/gazelle_rs"
 [workspace.dependencies]
 syn = { version = "2", features = ["full", "visit"] }
 prost = "=0.13.1"
+semver = "1"
 
 [profile.release]
 codegen-units = 1

@@ -1,5 +1,32 @@
 use std::slice;
 
+/// Returns 1 for a match, 0 for a mismatch, or -1 for invalid input.
+///
+/// # Safety
+/// Both pointers reference the specified number of readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn gazelle_rs_cargo_version_matches(
+    requirement: *const u8,
+    requirement_len: usize,
+    version: *const u8,
+    version_len: usize,
+) -> i32 {
+    let requirement = unsafe { slice::from_raw_parts(requirement, requirement_len) };
+    let version = unsafe { slice::from_raw_parts(version, version_len) };
+    let parsed = std::str::from_utf8(requirement)
+        .ok()
+        .and_then(|s| semver::VersionReq::parse(s).ok())
+        .zip(
+            std::str::from_utf8(version)
+                .ok()
+                .and_then(|s| semver::Version::parse(s).ok()),
+        );
+    match parsed {
+        Some((requirement, version)) => i32::from(requirement.matches(&version)),
+        None => -1,
+    }
+}
+
 /// # Safety
 /// Input points to `len` readable bytes (or is null when len is zero).
 /// Both output pointers are writable. Free the returned allocation exactly once.
