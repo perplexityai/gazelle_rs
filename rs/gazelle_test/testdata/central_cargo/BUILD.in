@@ -1,1 +1,3 @@
-# gazelle:rust_cargo_lock @vendor Cargo.toml Cargo.lock exceptions.json
+# gazelle:rust_cargo_lock @vendor Cargo.toml Cargo.lock
+# gazelle:resolve_regexp rs ^derive_(.*)$ @vendor//:derive-package-1.0.0
+# gazelle:rust_proc_macro derive_api

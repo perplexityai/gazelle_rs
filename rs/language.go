@@ -3,6 +3,7 @@ package rs
 
 import (
 	"flag"
+	"maps"
 	"path"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,7 @@ type rustConfig struct {
 	owned              bool
 	kindMap            map[string]config.MappedKind
 	cargo              *cargoIndex
+	procMacros         map[string]bool
 }
 
 func getConfig(c *config.Config) *rustConfig {
@@ -56,10 +58,14 @@ func getConfig(c *config.Config) *rustConfig {
 	return &rustConfig{enabled: true, edition: "2021"}
 }
 func (*rustLang) KnownDirectives() []string {
-	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog", "rust_cargo_lock"}
+	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog", "rust_cargo_lock", "rust_proc_macro"}
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
+	cfg.procMacros = maps.Clone(cfg.procMacros)
+	if cfg.procMacros == nil {
+		cfg.procMacros = map[string]bool{}
+	}
 	cfg.excludes = append([]string(nil), cfg.excludes...)
 	// Crate names apply only to this package; edition and visibility inherit.
 	cfg.crateName = ""
@@ -81,6 +87,14 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				cfg.crateName = d.Value
 			case "rust_visibility":
 				cfg.visibility = strings.Fields(d.Value)
+			case "rust_proc_macro":
+				for _, name := range strings.Fields(d.Value) {
+					if !rustIdentifier.MatchString(name) {
+						diagnostic(c, "gazelle_rs: %s: invalid proc-macro crate name %q", rel, name)
+						continue
+					}
+					cfg.procMacros[name] = true
+				}
 			case "rust_cargo_lock":
 				args := strings.Fields(d.Value)
 				cfg.cargo = nil

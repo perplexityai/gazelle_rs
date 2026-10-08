@@ -142,6 +142,11 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 		if cargo != nil {
 			if external, ok := cargo.byLabel[dep.String()]; ok {
 				isMacro, externalName = external.macro, external.name
+				// An explicit mapping supplies the import name when the lockfile
+				// only guessed it from the package name.
+				if overridden && external.inferred {
+					externalName = ""
+				}
 			}
 		}
 		if externalName != "" {
@@ -171,7 +176,7 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 				isMacro = true
 			}
 		}
-		if isMacro {
+		if isMacro || getConfig(c).procMacros[name] {
 			macros[value] = true
 		} else {
 			deps[value] = true
