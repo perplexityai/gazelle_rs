@@ -27,7 +27,7 @@ source = "registry+https://example.invalid/index"
 [[package]]
 name = "wire-codec"
 version = "2.0.0"
-source = "registry+https://example.invalid/index"
+source = "sparse+https://example.invalid/index"
 [[package]]
 name = "derive-package"
 version = "1.0.0"
@@ -74,7 +74,7 @@ source="registry+https://one.invalid"
 [[package]]
 name="wire"
 version="1.0.0"
-source="registry+https://two.invalid"
+source="sparse+https://two.invalid"
 `)
 	if _, err := loadCargoLock("@vendor", manifest, collision, ""); err == nil {
 		t.Fatal("accepted conflicting registries")

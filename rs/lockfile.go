@@ -65,7 +65,7 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 	unversioned := map[string][]externalCrate{}
 	for _, pkg := range lock.Package {
 		// Workspace and git packages have no portable versioned hub-label convention.
-		if !strings.HasPrefix(pkg.Source, "registry+") {
+		if !strings.HasPrefix(pkg.Source, "registry+") && !strings.HasPrefix(pkg.Source, "sparse+") {
 			continue
 		}
 		if pkg.Name == "" || pkg.Version == "" || !rustIdentifier.MatchString(crateName(pkg.Name)) {
