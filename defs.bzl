@@ -1,6 +1,4 @@
-"""Rust tests with an optional generated aggregate crate root."""
-
-load("@rules_rs//rs:rust_test.bzl", _rust_test = "rust_test")
+"""Generate a Rust test crate root from dedicated test modules."""
 
 def _root_impl(ctx):
     root = ctx.actions.declare_file(ctx.label.name + ".rs")
@@ -22,25 +20,7 @@ def _root_impl(ctx):
     ctx.actions.write(root, "\n".join(lines) + "\n")
     return [DefaultInfo(files = depset([root]))]
 
-_root = rule(
+rust_test_main_gen = rule(
     implementation = _root_impl,
     attrs = {"srcs": attr.label_list(allow_files = [".rs"])},
 )
-
-def rust_test(name, srcs = [], crate_root = None, crate = None, **kwargs):
-    if crate_root != None or crate != None:
-        _rust_test(name = name, srcs = srcs, crate_root = crate_root, crate = crate, **kwargs)
-        return
-    _root(
-        name = name + "_root",
-        srcs = srcs,
-        testonly = True,
-        target_compatible_with = kwargs.get("target_compatible_with", []),
-        visibility = ["//visibility:private"],
-    )
-    _rust_test(
-        name = name,
-        srcs = srcs + [":" + name + "_root"],
-        crate_root = ":" + name + "_root",
-        **kwargs
-    )

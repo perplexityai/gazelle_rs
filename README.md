@@ -20,6 +20,13 @@ Neither directory needs a Cargo manifest. If one exists, its package name,
 edition, library path/name, `proc-macro`, and explicit binary/test targets inform
 rule generation. Its dependency tables never gate internal resolution.
 
+## Recommended conventions
+
+See [Rust package conventions](CONVENTIONS.md) for the Bazel-first contract:
+package-wide file collection, flat crate roots, one aggregate for dedicated tests,
+the independent `rust_test_main_gen` rule, central dependencies, and supported
+explicit overrides. Cargo layouts are compatibility inputs, not requirements.
+
 ## Setup
 
 The module is not published yet. In a consumer's `MODULE.bazel`, use a local
@@ -138,8 +145,11 @@ Gazelle Resolve       → overrides / internal index → deps / proc_macro_deps
 
 The conventional roots are `src/lib.rs` or `lib.rs`, and `src/main.rs` or
 `main.rs`. A package containing both gets `<name>` and `<name>_bin` targets.
-`src/bin/*.rs`, `src/bin/*/main.rs`, and `tests/*.test.rs` are discovered too.
-Standalone `*.test.rs` and `src/*.test.rs` roots are discovered as well. A file
+Manifest-backed packages also discover Cargo's implicit `src/bin` binaries.
+Dedicated `.test.rs` files are selected from Gazelle's `RegularFiles`, without
+special test directories. With `# gazelle:generation_mode update_only`, Gazelle
+includes descendant files up to nested BUILD boundaries and applies exclusions;
+its default create mode supplies files for each directory separately. A file
 reachable through a library, binary, or procedural macro's module graph remains
 part of that crate instead of receiving an inferred standalone target. This
 includes test and feature-gated modules and literal `#[path]` attributes.
@@ -551,13 +561,14 @@ regex mappings only for a real label-naming convention; neither guesses versions
 ### Aggregate test roots
 
 Automatically discovered `.test.rs` files form one test target per package, not one
-target per file. The default `rust_test` macro from `@gazelle_rs//:defs.bzl` writes
-the crate root during the build; no generated Rust source is checked in. Member
+target per file. `rust_test_main_gen` from `@gazelle_rs//:defs.bzl` writes
+the crate root during the build; a normal `rust_test` consumes its output.
+The generator has no dependency on a Rust test implementation and can also be
+called inside custom macros. No generated Rust source is checked in. Member
 module names come from file basenames with `.test.rs` removed and hyphens replaced
 by underscores. Duplicate names require an explicit crate root.
 
-Custom `map_kind rust_test` macros must provide the same generated-root behavior
-when `crate_root` is omitted. Existing aggregate targets keep their names and gain
+Custom `map_kind rust_test` macros receive an explicit generated `crate_root`. Existing aggregate targets keep their names and gain
 newly discovered test files. When multiple aggregates exist, assign new files
 explicitly. Explicit test roots own their reachable modules, so neither form
 needs per-module `gazelle:exclude` directives. `examples/basic/grouped` tests

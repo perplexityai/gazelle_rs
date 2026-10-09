@@ -18,7 +18,7 @@ cmp "$scratch/BUILD.expected" unit/BUILD.bazel
 "$bazel_cmd" run //:gazelle -- -strict -mode=diff unit
 
 cp grouped/BUILD.bazel "$scratch/GROUPED.expected"
-: > grouped/BUILD.bazel
+printf '# gazelle:generation_mode update_only\n' > grouped/BUILD.bazel
 "$bazel_cmd" run //:gazelle -- -strict grouped
 cmp "$scratch/GROUPED.expected" grouped/BUILD.bazel
 "$bazel_cmd" test //grouped:grouped_test

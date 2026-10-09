@@ -187,12 +187,12 @@ rust_test(name = "manual", crate = ":lib", srcs = ["extra.rs"], deps = ["//manua
 	c.RepoRoot = dir
 	l := NewLanguage()
 	l.Configure(c, "", file)
-	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file, RegularFiles: []string{"lib.rs", "api.test.rs", "extra.rs"}})
 	names := []string{}
 	for i, r := range result.Gen {
 		names = append(names, r.Name())
 		if r.Name() == filepath.Base(dir)+"_test" {
-			if r.Attr("crate_root") != nil || r.Attr("crate") != nil {
+			if r.AttrString("crate_root") != ":"+r.Name()+"_main" || r.Attr("crate") != nil {
 				t.Fatalf("not a standalone test: %v", r)
 			}
 			if got := result.Imports[i].(importData).names; !reflect.DeepEqual(got, []string{"test_support"}) {
@@ -200,7 +200,7 @@ rust_test(name = "manual", crate = ":lib", srcs = ["extra.rs"], deps = ["//manua
 			}
 		}
 	}
-	if !reflect.DeepEqual(names, []string{"lib", filepath.Base(dir) + "_test"}) {
+	if !reflect.DeepEqual(names, []string{"lib", filepath.Base(dir) + "_test_main", filepath.Base(dir) + "_test"}) {
 		t.Fatalf("generated %v; want only standalone test and library", names)
 	}
 }
@@ -259,12 +259,12 @@ func TestExcludedCrateRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	l.Configure(c, "pkg", child)
-	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: filepath.Join(root, "pkg"), Rel: "pkg", File: child})
+	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: filepath.Join(root, "pkg"), Rel: "pkg", File: child, RegularFiles: []string{"src/lib.rs", "src/bin/tool.rs", "tests/privileged.test.rs", "tests/keep.test.rs", "tests/helper.rs"}})
 	var roots []string
 	for _, r := range result.Gen {
 		roots = append(roots, r.AttrString("crate_root"))
 	}
-	if !reflect.DeepEqual(roots, []string{"src/lib.rs", ""}) {
+	if !reflect.DeepEqual(roots, []string{"src/lib.rs", "", ":pkg_test_main"}) {
 		t.Fatalf("roots=%v", roots)
 	}
 	if got := result.Gen[1].AttrStrings("srcs"); !reflect.DeepEqual(got, []string{"tests/keep.test.rs"}) {
@@ -342,15 +342,25 @@ func TestExplicitTestTargetsOwnMemberFiles(t *testing.T) {
 			r.Insert(file)
 			file.Sync()
 			result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: root, File: file, RegularFiles: []string{"first.test.rs", "second.test.rs", "tests.test.rs"}})
-			if len(result.Gen) != 1 {
-				t.Fatalf("wanted one aggregate target, got %d", len(result.Gen))
+			testIndex := 0
+			if generated {
+				testIndex = 1
 			}
-			got := result.Gen[0]
+			if len(result.Gen) != testIndex+1 {
+				t.Fatalf("wanted one test and optional main generator, got %d", len(result.Gen))
+			}
+			got := result.Gen[testIndex]
 			if got.Name() != "suite" {
 				t.Fatalf("name=%s", got.Name())
 			}
-			if generated && got.Attr("crate_root") != nil {
-				t.Fatalf("generated root should remain omitted")
+			if generated {
+				if got.AttrString("crate_root") != ":suite_main" {
+					t.Fatal("test must consume generated root")
+				}
+				if !reflect.DeepEqual(result.Gen[0].AttrStrings("srcs"), sources) {
+					t.Fatal("generator lost members")
+				}
+				sources = append([]string{":suite_main"}, sources...)
 			}
 			if got.AttrString("edition") != "2024" {
 				t.Fatalf("lost explicit edition")
@@ -362,15 +372,20 @@ func TestExplicitTestTargetsOwnMemberFiles(t *testing.T) {
 				if err := os.WriteFile(filepath.Join(root, "third.test.rs"), []byte("#[test] fn third() { dep_c::run(); }"), 0644); err != nil {
 					t.Fatal(err)
 				}
-				grown := l.GenerateRules(language.GenerateArgs{Config: c, Dir: root, File: file})
-				if len(grown.Gen) != 1 || grown.Gen[0].Name() != "suite" {
+				file = rule.EmptyFile(filepath.Join(root, "BUILD.bazel"), "")
+				for _, generatedRule := range result.Gen {
+					generatedRule.Insert(file)
+				}
+				file.Sync()
+				grown := l.GenerateRules(language.GenerateArgs{Config: c, Dir: root, File: file, RegularFiles: []string{"first.test.rs", "second.test.rs", "third.test.rs"}})
+				if len(grown.Gen) != 2 || grown.Gen[1].Name() != "suite" {
 					t.Fatalf("new member generated an extra test target: %v", grown.Gen)
 				}
 				if got := grown.Gen[0].AttrStrings("srcs"); !reflect.DeepEqual(got, []string{"first.test.rs", "second.test.rs", "third.test.rs"}) {
 					t.Fatalf("new member missing: %v", got)
 				}
 				found := false
-				for _, name := range grown.Imports[0].(importData).names {
+				for _, name := range grown.Imports[1].(importData).names {
 					if name == "dep_c" {
 						found = true
 					}
@@ -379,7 +394,7 @@ func TestExplicitTestTargetsOwnMemberFiles(t *testing.T) {
 					t.Fatal("new member dependency was not extracted")
 				}
 			}
-			imports := result.Imports[0].(importData).names
+			imports := result.Imports[testIndex].(importData).names
 			for _, want := range []string{"dep_a", "dep_b"} {
 				found := false
 				for _, name := range imports {
