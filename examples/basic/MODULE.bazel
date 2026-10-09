@@ -9,3 +9,41 @@ local_path_override(
 bazel_dep(name = "gazelle", version = "0.51.3")
 bazel_dep(name = "rules_rs", version = "0.0.111")
 bazel_dep(name = "llvm", version = "0.8.18")
+
+bazel_dep(name = "rules_go", version = "0.62.0", dev_dependency = True)
+
+# Root modules select the toolchains used to build the plugin.
+register_toolchains(
+    "@llvm//toolchain:all",
+    dev_dependency = True,
+)
+
+toolchains = use_extension(
+    "@rules_rs//rs/toolchains:module_extension.bzl",
+    "toolchains",
+    dev_dependency = True,
+)
+toolchains.toolchain(
+    edition = "2024",
+    version = "1.95.0",
+)
+use_repo(toolchains, "default_rust_toolchains")
+
+register_toolchains(
+    "@default_rust_toolchains//...",
+    dev_dependency = True,
+)
+
+rules_rust_prost = use_extension(
+    "@rules_rs//rs:rules_rust_prost.bzl",
+    "rules_rust_prost",
+)
+use_repo(rules_rust_prost, "rules_rust_prost")
+
+register_toolchains(
+    "@rules_rust_prost//:default_prost_toolchain",
+    dev_dependency = True,
+)
+
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk", dev_dependency = True)
+go_sdk.download(version = "1.24.12")
