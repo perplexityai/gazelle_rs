@@ -1,0 +1,12 @@
+load("@gazelle_rs//:defs.bzl", "rust_test")
+
+rust_test(
+    name = "grouped_test",
+    srcs = [
+        "first.test.rs",
+        "second.test.rs",
+    ],
+    crate_name = "grouped_test",
+    edition = "2021",
+    deps = ["//api"],
+)

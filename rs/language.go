@@ -34,7 +34,11 @@ func (*rustLang) Kinds() map[string]rule.KindInfo {
 func (*rustLang) Loads() []rule.LoadInfo {
 	var out []rule.LoadInfo
 	for _, kind := range []string{"rust_library", "rust_binary", "rust_test", "rust_proc_macro"} {
-		out = append(out, rule.LoadInfo{Name: "@rules_rs//rs:" + kind + ".bzl", Symbols: []string{kind}})
+		load := "@rules_rs//rs:" + kind + ".bzl"
+		if kind == "rust_test" {
+			load = "@gazelle_rs//:defs.bzl"
+		}
+		out = append(out, rule.LoadInfo{Name: load, Symbols: []string{kind}})
 	}
 	return out
 }

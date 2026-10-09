@@ -30,6 +30,7 @@ type manifest struct {
 }
 type plan struct {
 	name, root, kind, edition string
+	roots                     []string
 	existing                  *rule.Rule
 	autoTest                  bool
 	owner                     *rule.Rule
@@ -139,7 +140,7 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 	} else {
 		add(target{}, "rust_binary", binaryName, choose("src/main.rs", "main.rs"), false)
 	}
-	for _, pattern := range []string{"src/bin/*.rs", "src/bin/*/main.rs", "tests/*.rs", "*.test.rs", "src/*.test.rs"} {
+	for _, pattern := range []string{"src/bin/*.rs", "src/bin/*/main.rs", "tests/*.test.rs", "*.test.rs", "src/*.test.rs"} {
 		files, err := filepath.Glob(filepath.Join(args.Dir, pattern))
 		if err != nil {
 			return nil, err
@@ -178,6 +179,24 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 				continue
 			}
 			root := r.AttrString("crate_root")
+			var roots []string
+			if kind == "rust_test" && root == "" && literalList(r, "srcs") {
+				roots = r.AttrStrings("srcs")
+				for _, source := range roots {
+					if !strings.HasSuffix(source, ".test.rs") || strings.Contains(source, ":") {
+						roots = nil
+						break
+					}
+				}
+			}
+			if len(roots) > 0 {
+				aggregateEdition := edition
+				if e := r.AttrString("edition"); e != "" {
+					aggregateEdition = e
+				}
+				plans = append(plans, plan{name: r.Name(), root: "@aggregate:" + r.Name(), roots: roots, kind: kind, edition: aggregateEdition, existing: r})
+				continue
+			}
 			if root == "" {
 				for _, src := range r.AttrStrings("srcs") {
 					if filepath.Base(src) == "lib.rs" || filepath.Base(src) == "main.rs" {
@@ -217,6 +236,28 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 	}
 	return out, nil
 }
+func extractPlan(dir string, p plan) (*pb.CrateResult, error) {
+	roots := []string{filepath.Join(dir, p.root)}
+	if len(p.roots) > 0 {
+		roots = nil
+		for _, source := range p.roots {
+			roots = append(roots, filepath.Join(dir, source))
+		}
+	}
+	facts, err := extract(roots)
+	if err != nil {
+		return nil, err
+	}
+	merged := &pb.CrateResult{}
+	for _, fact := range facts {
+		merged.Sources = append(merged.Sources, fact.Sources...)
+		merged.TestSources = append(merged.TestSources, fact.TestSources...)
+		merged.Imports = append(merged.Imports, fact.Imports...)
+		merged.TestImports = append(merged.TestImports, fact.TestImports...)
+	}
+	return merged, nil
+}
+
 func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	var result language.GenerateResult
 	cfg := getConfig(args.Config)
@@ -238,17 +279,16 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	owned := map[string]bool{}
 	ownershipComplete := true
 	for _, p := range plans {
-		if p.kind == "rust_test" {
+		if p.kind == "rust_test" && p.existing == nil {
 			continue
 		}
 		root := filepath.Join(args.Dir, p.root)
 		if _, ok := graphs[root]; ok {
 			continue
 		}
-		facts, err := extract([]string{root})
-		graph := sourceGraph{err: err}
+		fact, err := extractPlan(args.Dir, p)
+		graph := sourceGraph{err: err, fact: fact}
 		if err == nil {
-			graph.fact = facts[0]
 			for _, source := range graph.fact.Sources {
 				owned[filepath.Clean(source)] = true
 			}
@@ -258,9 +298,14 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		graphs[root] = graph
 	}
 	var active []plan
+	var automaticRoots []string
 	seenNames := map[string]bool{}
 	for _, p := range plans {
 		if p.autoTest && (!ownershipComplete || owned[filepath.Join(args.Dir, p.root)]) {
+			continue
+		}
+		if p.autoTest {
+			automaticRoots = append(automaticRoots, p.root)
 			continue
 		}
 		if seenNames[p.name] {
@@ -269,6 +314,38 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 		seenNames[p.name] = true
 		active = append(active, p)
+	}
+	if len(automaticRoots) > 0 {
+		sort.Strings(automaticRoots)
+		aggregate := -1
+		for i, p := range active {
+			if p.kind == "rust_test" && len(p.roots) > 0 {
+				if aggregate >= 0 {
+					aggregate = -2
+					break
+				}
+				aggregate = i
+			}
+		}
+		if aggregate >= 0 {
+			p := &active[aggregate]
+			p.roots = append(p.roots, automaticRoots...)
+			delete(graphs, filepath.Join(args.Dir, p.root))
+		} else if aggregate == -2 {
+			diagnostic(args.Config, "gazelle_rs: %s: multiple aggregate tests; assign new test sources explicitly", args.Rel)
+		} else {
+			name := crateName(filepath.Base(args.Dir))
+			if cfg.crateName != "" {
+				name = cfg.crateName
+			}
+			name += "_test"
+			if seenNames[name] {
+				diagnostic(args.Config, "gazelle_rs: %s: aggregate test target %q is already owned; add the test sources to that target", args.Rel, name)
+			} else {
+				active = append(active, plan{name: name, root: "@aggregate:" + name, roots: automaticRoots, kind: "rust_test", edition: cfg.edition})
+				seenNames[name] = true
+			}
+		}
 	}
 	existingNames := map[string]bool{}
 	if args.File != nil {
@@ -332,11 +409,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 		graph, ok := graphs[root]
 		if !ok {
-			facts, err := extract([]string{root})
-			graph.err = err
-			if err == nil {
-				graph.fact = facts[0]
-			}
+			graph.fact, graph.err = extractPlan(args.Dir, p)
 			graphs[root] = graph
 		}
 		if graph.err != nil {
@@ -356,7 +429,12 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		for _, src := range fact.TestSources {
 			testSources[src] = true
 		}
+		seenSources := map[string]bool{}
 		for _, src := range fact.Sources {
+			if seenSources[src] {
+				continue
+			}
+			seenSources[src] = true
 			if p.kind != "rust_test" && testSources[src] {
 				continue
 			}
@@ -392,7 +470,20 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 				}
 			}
 		}
-		r.SetAttr("crate_root", filepath.ToSlash(p.root))
+		if len(p.roots) == 0 {
+			r.SetAttr("crate_root", filepath.ToSlash(p.root))
+		} else if args.File != nil {
+			if _, mapped := args.Config.KindMap["rust_test"]; !mapped {
+				for _, load := range args.File.Loads {
+					if load.Name() == "@rules_rs//rs:rust_test.bzl" && load.Has("rust_test") {
+						load.Remove("rust_test")
+						if len(load.Symbols()) == 0 {
+							load.Delete()
+						}
+					}
+				}
+			}
+		}
 		r.SetAttr("edition", p.edition)
 		cn := crateName(p.name)
 		if p.owner != nil {

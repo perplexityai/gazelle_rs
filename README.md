@@ -138,14 +138,15 @@ Gazelle Resolve       → overrides / internal index → deps / proc_macro_deps
 
 The conventional roots are `src/lib.rs` or `lib.rs`, and `src/main.rs` or
 `main.rs`. A package containing both gets `<name>` and `<name>_bin` targets.
-`src/bin/*.rs`, `src/bin/*/main.rs`, and `tests/*.rs` are discovered too.
+`src/bin/*.rs`, `src/bin/*/main.rs`, and `tests/*.test.rs` are discovered too.
 Standalone `*.test.rs` and `src/*.test.rs` roots are discovered as well. A file
 reachable through a library, binary, or procedural macro's module graph remains
 part of that crate instead of receiving an inferred standalone target. This
 includes test and feature-gated modules and literal `#[path]` attributes.
 Explicit BUILD test targets and Cargo test declarations still take precedence.
-Test targets use the filename stem plus `_test` (`api.test.rs` becomes `api_test`). Subdirectories owned
-by a crate do not generate duplicate crates.
+Unowned `.test.rs` files form one `<package>_test` aggregate with a build-generated
+crate root. Explicit test roots own their reachable modules too. Subdirectories
+owned by a crate do not generate duplicate crates.
 
 The parser follows declared out-of-line and inline `mod` trees, including
 literal `#[path = "..."]` attributes. Only reachable source files become
@@ -433,8 +434,8 @@ directive has been removed; delete it from BUILD files before upgrading.
 For generated tests, move tests into a standalone `*.test.rs` file at the package
 root or directly under `src/`, and import the library by its crate name. Do not
 include this file in the library with `mod` or `#[path]`. Run Gazelle to create a
-`rust_test` with explicit `srcs`, `crate_root`, and dependencies. Existing
-standalone roots in `tests/*.rs`, Cargo test declarations, and explicit BUILD
+`rust_test` with explicit `srcs` and dependencies, and a build-generated crate root. Existing
+Cargo test declarations and explicit BUILD
 test roots continue to work.
 
 For ordinary library unit tests, prefer one explicit owner-based test target
@@ -546,3 +547,18 @@ inferred a name from the package. It does not create a rename alias from that
 guess. Actual renamed imports should use explicit BUILD `aliases` or central
 manifest dependency renames. Prefer exact mappings for isolated exceptions and
 regex mappings only for a real label-naming convention; neither guesses versions.
+
+### Aggregate test roots
+
+Automatically discovered `.test.rs` files form one test target per package, not one
+target per file. The default `rust_test` macro from `@gazelle_rs//:defs.bzl` writes
+the crate root during the build; no generated Rust source is checked in. Member
+module names come from file basenames with `.test.rs` removed and hyphens replaced
+by underscores. Duplicate names require an explicit crate root.
+
+Custom `map_kind rust_test` macros must provide the same generated-root behavior
+when `crate_root` is omitted. Existing aggregate targets keep their names and gain
+newly discovered test files. When multiple aggregates exist, assign new files
+explicitly. Explicit test roots own their reachable modules, so neither form
+needs per-module `gazelle:exclude` directives. `examples/basic/grouped` tests
+empty-BUILD generation, compilation, and regeneration idempotence.
