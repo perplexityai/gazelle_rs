@@ -69,6 +69,18 @@ func literalList(r *rule.Rule, attr string) bool {
 	return true
 }
 
+// Computed dependencies are user-owned. Gazelle's default list merger only
+// recognizes a subset of select keys and cannot merge arbitrary calls.
+type preservedDependency struct{ expr build.Expr }
+
+func (v preservedDependency) BzlExpr() build.Expr { return v.expr }
+func (v preservedDependency) Merge(other build.Expr) build.Expr {
+	if other != nil {
+		return other
+	}
+	return v.expr
+}
+
 // Seed existing resolution attributes so an incomplete extraction or a computed
 // dependency expression cannot turn an early Resolve return into a deletion.
 func seedResolveAttrs(dst, src *rule.Rule) {
@@ -77,7 +89,11 @@ func seedResolveAttrs(dst, src *rule.Rule) {
 	}
 	for _, attr := range []string{"deps", "proc_macro_deps"} {
 		if value := src.Attr(attr); value != nil {
-			dst.SetAttr(attr, value)
+			if literalList(src, attr) {
+				dst.SetAttr(attr, value)
+			} else {
+				dst.SetAttr(attr, preservedDependency{value})
+			}
 		}
 	}
 	if value := src.Attr("aliases"); value != nil {
