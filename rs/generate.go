@@ -170,7 +170,9 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 		}
 		add(t, "rust_test", t.Name+"_test", "", false)
 	}
-	// Explicit crate roots and names take precedence over discovery.
+	// Explicit Rust compilation rules claim their crate roots over inferred rules.
+	// Ownership is independent of rule kind and name; explicit variants may
+	// share a root, and ordinary module sources do not claim other crate roots.
 	if args.File != nil {
 		for _, r := range args.File.Rules {
 			kind := baseKind(args.Config, r.Kind())
@@ -211,8 +213,11 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 					root = r.AttrStrings("srcs")[0]
 				}
 			}
+			if root != "" {
+				root = filepath.Clean(root)
+			}
 			for i := len(plans) - 1; i >= 0; i-- {
-				if plans[i].existing == nil && ((plans[i].root == root && plans[i].kind == kind) || plans[i].name == r.Name()) {
+				if plans[i].existing == nil && ((root != "" && plans[i].root == root) || plans[i].name == r.Name()) {
 					plans = append(plans[:i], plans[i+1:]...)
 				}
 			}

@@ -117,9 +117,15 @@ func TestResolutionAmbiguityOverridesAndProcMacros(t *testing.T) {
 
 func TestExistingRulesAndFailedGraphs(t *testing.T) {
 	for _, tc := range []struct {
-		name, build, source               string
+		name, build, source, manifest     string
 		nestedPackage, wantRule, preserve bool
 	}{
+		{name: "explicit_library", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"])`, source: "pub fn f() {}", manifest: `[package]
+name = "pkg"
+[lib]
+proc-macro = true
+`, wantRule: true},
+		{name: "explicit_proc_macro", build: `rust_proc_macro(name = "custom", crate_name = "custom_macro", crate_root = "lib.rs", srcs = ["lib.rs"])`, source: "pub fn f() {}", wantRule: true},
 		{name: "computed_sources", build: `rust_library(name = "custom", crate_name = "pkg", crate_root = "lib.rs", srcs = glob(["*.rs"]))`, source: "pub fn f() {}"},
 		{name: "computed_deps", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"], deps = select({"//conditions:default": []}))`, source: "pub fn f() {}", wantRule: true, preserve: true},
 		{name: "missing_module", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"], deps = ["//old"])`, source: "mod missing;"},
@@ -129,6 +135,11 @@ func TestExistingRulesAndFailedGraphs(t *testing.T) {
 			dir := t.TempDir()
 			if err := os.WriteFile(filepath.Join(dir, "lib.rs"), []byte(tc.source), 0644); err != nil {
 				t.Fatal(err)
+			}
+			if tc.manifest != "" {
+				if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(tc.manifest), 0644); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if tc.nestedPackage {
 				if err := os.MkdirAll(filepath.Join(dir, "nested"), 0755); err != nil {
@@ -155,11 +166,83 @@ func TestExistingRulesAndFailedGraphs(t *testing.T) {
 				}
 				return
 			}
-			if len(got.Gen) != 1 || got.Gen[0].Name() != "custom" {
+			if len(got.Gen) != 1 || got.Gen[0].Name() != "custom" || got.Gen[0].Kind() != file.Rules[0].Kind() {
 				t.Fatalf("lost existing target ownership: %v", got.Gen)
 			}
 			if got.Imports[0].(importData).preserve != tc.preserve {
 				t.Fatal("computed dependencies were not preserved")
+			}
+		})
+	}
+}
+
+func TestExplicitCrateRootOwnership(t *testing.T) {
+	for _, tc := range []struct {
+		name, build string
+		want        map[string]string
+	}{
+		{
+			name:  "binary_claims_library_root",
+			build: `rust_binary(name = "custom", crate_root = "./lib.rs", srcs = ["lib.rs"])`,
+			want:  map[string]string{"custom": "rust_binary"},
+		},
+		{
+			name:  "test_claims_library_root",
+			build: `rust_test(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"])`,
+			want:  map[string]string{"custom": "rust_test"},
+		},
+		{
+			name:  "literal_sources_claim_root",
+			build: `rust_proc_macro(name = "custom", srcs = ["lib.rs"])`,
+			want:  map[string]string{"custom": "rust_proc_macro"},
+		},
+		{
+			name: "explicit_variants_share_root",
+			build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"])
+rust_proc_macro(name = "custom_macro", crate_root = "lib.rs", srcs = ["lib.rs"])`,
+			want: map[string]string{"custom": "rust_library", "custom_macro": "rust_proc_macro"},
+		},
+		{
+			name:  "resource_does_not_claim_root",
+			build: `filegroup(name = "sources", srcs = ["lib.rs"])`,
+			want:  map[string]string{"pkg": "rust_library"},
+		},
+		{
+			name:  "module_source_does_not_claim_root",
+			build: `rust_library(name = "custom", crate_root = "other.rs", srcs = ["other.rs", "lib.rs"])`,
+			want:  map[string]string{"pkg": "rust_library", "custom": "rust_library"},
+		},
+		{
+			name:  "owner_test_does_not_claim_root",
+			build: `rust_test(name = "custom_test", crate = ":pkg", srcs = ["lib.rs"])`,
+			want:  map[string]string{"pkg": "rust_library"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, source := range map[string]string{
+				"lib.rs":   "pub fn run() {}",
+				"other.rs": `#[path = "lib.rs"] mod shared;`,
+			} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			file, err := rule.LoadData(filepath.Join(dir, "BUILD.bazel"), "", []byte("# gazelle:rust_crate_name pkg\n"+tc.build))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := config.New()
+			c.RepoRoot = dir
+			l := NewLanguage()
+			l.Configure(c, "", file)
+			result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+			got := map[string]string{}
+			for _, r := range result.Gen {
+				got[r.Name()] = r.Kind()
+			}
+			if len(result.Gen) != len(tc.want) || !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("generated targets = %v, want %v", got, tc.want)
 			}
 		})
 	}

@@ -1,0 +1,1 @@
+module(name = "explicit_proc_macro")

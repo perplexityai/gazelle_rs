@@ -189,6 +189,14 @@ Production roots with computed
 If a production graph cannot be parsed, inferred `.test.rs` discovery in that
 package is deferred; explicit test targets continue to be processed.
 
+Explicit Rust compilation rules claim their crate roots, suppressing inferred
+rules for the same root regardless of target name or rule kind, including kinds
+inferred from Cargo. A root may be declared with `crate_root` or inferred from
+literal `srcs`. Explicit variants sharing a root are retained. Listing a shared
+module in `srcs` does not claim it as another crate root, and resource rules such
+as `filegroup` do not claim compilation ownership. Owner-based tests using
+`crate = ":owner"` do not claim the owner's root.
+
 Explicit rules with literal sources and crate roots retain their names and
 crate names. Unrelated attributes survive Gazelle's merge. Computed `srcs`
 remain unmanaged; computed `deps`/`proc_macro_deps` are preserved. Gazelle's
