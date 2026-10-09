@@ -176,6 +176,78 @@ proc-macro = true
 	}
 }
 
+func TestExplicitCrateRootOwnership(t *testing.T) {
+	for _, tc := range []struct {
+		name, build string
+		want        map[string]string
+	}{
+		{
+			name:  "binary_claims_library_root",
+			build: `rust_binary(name = "custom", crate_root = "./lib.rs", srcs = ["lib.rs"])`,
+			want:  map[string]string{"custom": "rust_binary"},
+		},
+		{
+			name:  "test_claims_library_root",
+			build: `rust_test(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"])`,
+			want:  map[string]string{"custom": "rust_test"},
+		},
+		{
+			name:  "literal_sources_claim_root",
+			build: `rust_proc_macro(name = "custom", srcs = ["lib.rs"])`,
+			want:  map[string]string{"custom": "rust_proc_macro"},
+		},
+		{
+			name: "explicit_variants_share_root",
+			build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"])
+rust_proc_macro(name = "custom_macro", crate_root = "lib.rs", srcs = ["lib.rs"])`,
+			want: map[string]string{"custom": "rust_library", "custom_macro": "rust_proc_macro"},
+		},
+		{
+			name:  "resource_does_not_claim_root",
+			build: `filegroup(name = "sources", srcs = ["lib.rs"])`,
+			want:  map[string]string{"pkg": "rust_library"},
+		},
+		{
+			name:  "module_source_does_not_claim_root",
+			build: `rust_library(name = "custom", crate_root = "other.rs", srcs = ["other.rs", "lib.rs"])`,
+			want:  map[string]string{"pkg": "rust_library", "custom": "rust_library"},
+		},
+		{
+			name:  "owner_test_does_not_claim_root",
+			build: `rust_test(name = "custom_test", crate = ":pkg", srcs = ["lib.rs"])`,
+			want:  map[string]string{"pkg": "rust_library"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, source := range map[string]string{
+				"lib.rs":   "pub fn run() {}",
+				"other.rs": `#[path = "lib.rs"] mod shared;`,
+			} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			file, err := rule.LoadData(filepath.Join(dir, "BUILD.bazel"), "", []byte("# gazelle:rust_crate_name pkg\n"+tc.build))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := config.New()
+			c.RepoRoot = dir
+			l := NewLanguage()
+			l.Configure(c, "", file)
+			result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+			got := map[string]string{}
+			for _, r := range result.Gen {
+				got[r.Name()] = r.Kind()
+			}
+			if len(result.Gen) != len(tc.want) || !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("generated targets = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStandaloneTestsAndManualOwnerTests(t *testing.T) {
 	dir := t.TempDir()
 	for name, source := range map[string]string{
