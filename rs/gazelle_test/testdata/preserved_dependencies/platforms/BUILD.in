@@ -1,0 +1,29 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+load("//config:deps.bzl", "platform_deps")
+
+rust_library(
+    name = "platform_library",
+    srcs = ["lib.rs"],
+    crate_name = "platform_library",
+    crate_root = "lib.rs",
+    edition = "2021",
+    proc_macro_deps = platform_deps(),
+    deps = ["//deps:common"] + select({
+        "@platforms//os:macos": ["//deps:apple"],
+        "//config:custom_feature": ["//deps:feature"],
+        "//conditions:default": [],
+    }),
+)
+
+rust_test(
+    name = "checks",
+    srcs = ["checks.test.rs"],
+    crate_name = "checks",
+    edition = "2021",
+    proc_macro_deps = select({
+        "//config:custom_feature": ["//deps:derive"],
+        "//conditions:default": [],
+    }),
+    deps = [":platform_library"] + platform_deps(),
+)

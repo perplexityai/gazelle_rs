@@ -199,7 +199,8 @@ as `filegroup` do not claim compilation ownership. Owner-based tests using
 
 Explicit rules with literal sources and crate roots retain their names and
 crate names. Unrelated attributes survive Gazelle's merge. Computed `srcs`
-remain unmanaged; computed `deps`/`proc_macro_deps` are preserved. Gazelle's
+remain unmanaged; computed `deps`/`proc_macro_deps` are preserved, including
+custom `select` conditions and helper calls. Gazelle's
 `# keep` comments remain available for hand-maintained values. Failed parsing,
 missing modules, and source graphs crossing Bazel package boundaries leave the
 affected target unchanged and produce diagnostics.
