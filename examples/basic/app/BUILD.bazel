@@ -1,5 +1,5 @@
+load("@gazelle_rs//test_support:test_rules.bzl", "aggregate_rust_test")
 load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
-load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 rust_binary(
     name = "app",
@@ -11,7 +11,7 @@ rust_binary(
     deps = ["//api"],
 )
 
-rust_test(
+aggregate_rust_test(
     name = "integration_test",
     srcs = ["tests/integration.rs"],
     crate_name = "integration_test",

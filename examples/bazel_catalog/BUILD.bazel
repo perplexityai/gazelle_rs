@@ -1,3 +1,5 @@
+# gazelle:map_kind rust_test aggregate_rust_test @gazelle_rs//test_support:test_rules.bzl
+
 load("@gazelle//:def.bzl", "gazelle", "gazelle_binary")
 
 gazelle_binary(
