@@ -117,9 +117,15 @@ func TestResolutionAmbiguityOverridesAndProcMacros(t *testing.T) {
 
 func TestExistingRulesAndFailedGraphs(t *testing.T) {
 	for _, tc := range []struct {
-		name, build, source               string
+		name, build, source, manifest     string
 		nestedPackage, wantRule, preserve bool
 	}{
+		{name: "explicit_library", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"])`, source: "pub fn f() {}", manifest: `[package]
+name = "pkg"
+[lib]
+proc-macro = true
+`, wantRule: true},
+		{name: "explicit_proc_macro", build: `rust_proc_macro(name = "custom", crate_name = "custom_macro", crate_root = "lib.rs", srcs = ["lib.rs"])`, source: "pub fn f() {}", wantRule: true},
 		{name: "computed_sources", build: `rust_library(name = "custom", crate_name = "pkg", crate_root = "lib.rs", srcs = glob(["*.rs"]))`, source: "pub fn f() {}"},
 		{name: "computed_deps", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"], deps = select({"//conditions:default": []}))`, source: "pub fn f() {}", wantRule: true, preserve: true},
 		{name: "missing_module", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"], deps = ["//old"])`, source: "mod missing;"},
@@ -129,6 +135,11 @@ func TestExistingRulesAndFailedGraphs(t *testing.T) {
 			dir := t.TempDir()
 			if err := os.WriteFile(filepath.Join(dir, "lib.rs"), []byte(tc.source), 0644); err != nil {
 				t.Fatal(err)
+			}
+			if tc.manifest != "" {
+				if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(tc.manifest), 0644); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if tc.nestedPackage {
 				if err := os.MkdirAll(filepath.Join(dir, "nested"), 0755); err != nil {
@@ -155,7 +166,7 @@ func TestExistingRulesAndFailedGraphs(t *testing.T) {
 				}
 				return
 			}
-			if len(got.Gen) != 1 || got.Gen[0].Name() != "custom" {
+			if len(got.Gen) != 1 || got.Gen[0].Name() != "custom" || got.Gen[0].Kind() != file.Rules[0].Kind() {
 				t.Fatalf("lost existing target ownership: %v", got.Gen)
 			}
 			if got.Imports[0].(importData).preserve != tc.preserve {

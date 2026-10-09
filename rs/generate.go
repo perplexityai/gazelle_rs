@@ -212,7 +212,10 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 				}
 			}
 			for i := len(plans) - 1; i >= 0; i-- {
-				if plans[i].existing == nil && ((plans[i].root == root && plans[i].kind == kind) || plans[i].name == r.Name()) {
+				library := kind == "rust_library" || kind == "rust_proc_macro"
+				discoveredLibrary := plans[i].kind == "rust_library" || plans[i].kind == "rust_proc_macro"
+				sameKind := plans[i].kind == kind || (library && discoveredLibrary)
+				if plans[i].existing == nil && ((plans[i].root == root && sameKind) || plans[i].name == r.Name()) {
 					plans = append(plans[:i], plans[i+1:]...)
 				}
 			}

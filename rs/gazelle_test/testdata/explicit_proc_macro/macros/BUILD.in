@@ -1,0 +1,9 @@
+load("@rules_rs//rs:rust_proc_macro.bzl", "rust_proc_macro")
+
+rust_proc_macro(
+    name = "widget-derive",
+    srcs = ["lib.rs"],
+    crate_name = "widget_derive",
+    crate_root = "lib.rs",
+    edition = "2024",
+)
