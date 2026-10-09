@@ -11,3 +11,5 @@ gazelle(
     name = "gazelle",
     gazelle = ":gazelle_bin",
 )
+
+exports_files(["defs.bzl"])

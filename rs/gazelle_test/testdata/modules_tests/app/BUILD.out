@@ -1,20 +1,10 @@
 load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
-load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 rust_binary(
     name = "app",
     srcs = ["src/main.rs"],
     crate_name = "app",
     crate_root = "src/main.rs",
-    edition = "2021",
-    deps = ["//api"],
-)
-
-rust_test(
-    name = "check_test",
-    srcs = ["tests/check.rs"],
-    crate_name = "check_test",
-    crate_root = "tests/check.rs",
     edition = "2021",
     deps = ["//api"],
 )

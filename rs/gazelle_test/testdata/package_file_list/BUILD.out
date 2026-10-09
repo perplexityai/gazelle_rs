@@ -1,0 +1,23 @@
+load("@gazelle_rs//:defs.bzl", "rust_test_main_gen")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+# gazelle:generation_mode update_only
+# gazelle:exclude skipped
+
+rust_test_main_gen(
+    name = "package_file_list_test_main",
+    testonly = True,
+    srcs = ["nested/cases.test.rs"],
+    visibility = ["//visibility:private"],
+)
+
+rust_test(
+    name = "package_file_list_test",
+    srcs = [
+        "nested/cases.test.rs",
+        ":package_file_list_test_main",
+    ],
+    crate_name = "package_file_list_test",
+    crate_root = ":package_file_list_test_main",
+    edition = "2021",
+)

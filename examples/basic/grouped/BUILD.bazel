@@ -1,0 +1,27 @@
+load("@gazelle_rs//:defs.bzl", "rust_test_main_gen")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+# gazelle:generation_mode update_only
+
+rust_test_main_gen(
+    name = "grouped_test_main",
+    testonly = True,
+    srcs = [
+        "first.test.rs",
+        "nested/second.test.rs",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+rust_test(
+    name = "grouped_test",
+    srcs = [
+        "first.test.rs",
+        "nested/second.test.rs",
+        ":grouped_test_main",
+    ],
+    crate_name = "grouped_test",
+    crate_root = ":grouped_test_main",
+    edition = "2021",
+    deps = ["//api"],
+)

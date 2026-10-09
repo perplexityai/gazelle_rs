@@ -1,3 +1,4 @@
+load("@gazelle_rs//:defs.bzl", "rust_test_main_gen")
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
 load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
@@ -18,20 +19,30 @@ rust_test(
 )
 
 rust_test(
-    name = "api_test",
-    srcs = ["api.test.rs"],
-    crate_name = "api_test",
-    crate_root = "api.test.rs",
-    edition = "2021",
-    deps = [":sample"],
-)
-
-rust_test(
     name = "manifest_override",
     srcs = ["manifest.test.rs"],
     crate_name = "manifest_override",
     crate_root = "manifest.test.rs",
     edition = "2021",
+)
+
+rust_test_main_gen(
+    name = "explicit_standalone_tests_test_main",
+    testonly = True,
+    srcs = ["api.test.rs"],
+    visibility = ["//visibility:private"],
+)
+
+rust_test(
+    name = "explicit_standalone_tests_test",
+    srcs = [
+        "api.test.rs",
+        ":explicit_standalone_tests_test_main",
+    ],
+    crate_name = "explicit_standalone_tests_test",
+    crate_root = ":explicit_standalone_tests_test_main",
+    edition = "2021",
+    deps = [":sample"],
 )
 
 rust_test(
