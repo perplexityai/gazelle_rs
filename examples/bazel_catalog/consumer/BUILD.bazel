@@ -1,5 +1,5 @@
+load("@gazelle_rs//:defs.bzl", "rust_test")
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
-load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 rust_library(
     name = "consumer",
@@ -13,10 +13,10 @@ rust_library(
 )
 
 rust_test(
-    name = "consumer_test",
+    name = "renamed_consumer_test",
     srcs = ["src/consumer.test.rs"],
     aliases = {"@fixture_crates//:codec-1.0.0": "renamed"},
-    crate_name = "consumer_test",
+    crate_name = "renamed_consumer_test",
     crate_root = "src/consumer.test.rs",
     edition = "2021",
     proc_macro_deps = ["@fixture_crates//:derive-1.0.0"],
@@ -36,10 +36,9 @@ rust_test(
 )
 
 rust_test(
-    name = "discovery_test",
+    name = "consumer_test",
     srcs = ["discovery.test.rs"],
-    crate_name = "discovery_test",
-    crate_root = "discovery.test.rs",
+    crate_name = "consumer_test",
     edition = "2021",
     deps = [":consumer"],
 )

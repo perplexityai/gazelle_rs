@@ -10,7 +10,7 @@ rust_library(
 )
 
 rust_test(
-    name = "consumer_test",
+    name = "renamed_consumer_test",
     srcs = ["src/consumer.test.rs"],
     aliases = {"@fixture_crates//:codec-1.0.0": "renamed"},
     crate_root = "src/consumer.test.rs",
