@@ -47,32 +47,26 @@ Use `gazelle:exclude` to exclude files. Do not use it to fix duplicate test targ
 - Share test helpers through sibling paths such as `crate::support`.
 - Keep standalone test sources and dependencies out of production targets.
 
-Gazelle emits a source generator and a normal test rule:
+Gazelle emits only the test target. Map `rust_test` to a caller macro that owns
+the generated main:
 
 ```starlark
-load("@gazelle_rs//:defs.bzl", "rust_test_main_gen")
-load("@rules_rs//rs:rust_test.bzl", "rust_test")
+# gazelle:map_kind rust_test project_rust_test //:defs.bzl
 
-rust_test_main_gen(
-    name = "widget_test_main",
-    testonly = True,
-    srcs = ["behavior.test.rs", "support.test.rs"],
-    visibility = ["//visibility:private"],
-)
-
-rust_test(
+project_rust_test(
     name = "widget_test",
-    srcs = ["behavior.test.rs", "support.test.rs", ":widget_test_main"],
+    srcs = ["behavior.test.rs", "support.test.rs"],
     crate_name = "widget_test",
-    crate_root = ":widget_test_main",
     edition = "2021",
     deps = [":widget"],
 )
 ```
 
-`rust_test_main_gen` writes a file. Nothing else. Any macro can use it. Pass its
-output as `crate_root`; include the output and member files in `srcs`.
-Do not check in generated test mains.
+Use a symbolic macro to call `rust_test_main_gen` from `@gazelle_rs//:defs.bzl`
+when no explicit root is supplied. It writes the root; the macro adds that output
+to `srcs` and passes it as `crate_root` to the native test rule.
+See `test_support/test_rules.bzl` for a working caller. Do not check in generated mains.
+Gazelle does not generate helper targets, loads, or labels.
 
 Module name = basename minus `.test.rs`, with `-` changed to `_`.
 Names must be unique ASCII Rust identifiers. No `_`, `self`, `super`, `crate`,

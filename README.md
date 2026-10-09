@@ -444,7 +444,7 @@ directive has been removed; delete it from BUILD files before upgrading.
 For generated tests, move tests into a standalone `*.test.rs` file at the package
 root or directly under `src/`, and import the library by its crate name. Do not
 include this file in the library with `mod` or `#[path]`. Run Gazelle to create a
-`rust_test` with explicit `srcs` and dependencies, and a build-generated crate root. Existing
+`rust_test` with explicit `srcs` and dependencies, and a caller-generated crate root. Existing
 Cargo test declarations and explicit BUILD
 test roots continue to work.
 
@@ -560,16 +560,22 @@ regex mappings only for a real label-naming convention; neither guesses versions
 
 ### Aggregate test roots
 
-Automatically discovered `.test.rs` files form one test target per package, not one
-target per file. `rust_test_main_gen` from `@gazelle_rs//:defs.bzl` writes
-the crate root during the build; a normal `rust_test` consumes its output.
-The generator has no dependency on a Rust test implementation and can also be
-called inside custom macros. No generated Rust source is checked in. Member
-module names come from file basenames with `.test.rs` removed and hyphens replaced
-by underscores. Duplicate names require an explicit crate root.
+Automatically discovered `.test.rs` files form one test target per package.
+Gazelle emits only that target, its source list, and dependencies. It never emits
+a test-main generator or a generated-root label.
 
-Custom `map_kind rust_test` macros receive an explicit generated `crate_root`. Existing aggregate targets keep their names and gain
-newly discovered test files. When multiple aggregates exist, assign new files
-explicitly. Explicit test roots own their reachable modules, so neither form
-needs per-module `gazelle:exclude` directives. `examples/basic/grouped` tests
-empty-BUILD generation, compilation, and regeneration idempotence.
+Map `rust_test` to a caller-owned macro with the standard `gazelle:map_kind`
+directive. The macro generates a main when no explicit `crate_root` is supplied.
+The independent `rust_test_main_gen` rule in `@gazelle_rs//:defs.bzl` remains
+available for this; `test_support/test_rules.bzl` shows a symbolic macro using it.
+Member module names come from file basenames with `.test.rs` removed and hyphens
+replaced by underscores. Duplicate names require an explicit crate root.
+
+Existing rootless aggregates keep their names and gain newly discovered test
+files. Multiple aggregates require explicit member assignments. Explicit roots
+keep their module ownership. `examples/basic/grouped` tests empty-BUILD
+generation, compilation through the caller macro, and regeneration idempotence.
+
+When upgrading an existing aggregate, remove its BUILD-level `rust_test_main_gen`
+and remove that generated label from the test's `srcs` and `crate_root`. Configure
+the caller macro before regeneration. Hand-maintained explicit roots stay supported.

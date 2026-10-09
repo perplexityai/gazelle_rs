@@ -29,7 +29,6 @@ func (*rustLang) Kinds() map[string]rule.KindInfo {
 	for _, kind := range []string{"rust_library", "rust_binary", "rust_test", "rust_proc_macro"} {
 		out[kind] = rule.KindInfo{NonEmptyAttrs: map[string]bool{"name": true}, MergeableAttrs: map[string]bool{"srcs": true}, ResolveAttrs: map[string]bool{"deps": true, "proc_macro_deps": true, "aliases": true}}
 	}
-	out["rust_test_main_gen"] = rule.KindInfo{NonEmptyAttrs: map[string]bool{"srcs": true}, MergeableAttrs: map[string]bool{"srcs": true}}
 	return out
 }
 func (*rustLang) Loads() []rule.LoadInfo {
@@ -38,7 +37,6 @@ func (*rustLang) Loads() []rule.LoadInfo {
 		load := "@rules_rs//rs:" + kind + ".bzl"
 		out = append(out, rule.LoadInfo{Name: load, Symbols: []string{kind}})
 	}
-	out = append(out, rule.LoadInfo{Name: "@gazelle_rs//:defs.bzl", Symbols: []string{"rust_test_main_gen"}})
 	return out
 }
 

@@ -32,7 +32,6 @@ type plan struct {
 	name, root, kind, edition string
 	roots                     []string
 	existing                  *rule.Rule
-	mainGen                   *rule.Rule
 	autoTest                  bool
 	owner                     *rule.Rule
 }
@@ -183,18 +182,7 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 				continue
 			}
 			root := r.AttrString("crate_root")
-			var mainGen *rule.Rule
-			if kind == "rust_test" && strings.HasPrefix(root, ":") {
-				for _, candidate := range args.File.Rules {
-					if baseKind(args.Config, candidate.Kind()) == "rust_test_main_gen" && ":"+candidate.Name() == root {
-						mainGen = candidate
-					}
-				}
-			}
 			var roots []string
-			if mainGen != nil && literalList(mainGen, "srcs") {
-				roots = mainGen.AttrStrings("srcs")
-			}
 			if kind == "rust_test" && root == "" && literalList(r, "srcs") {
 				roots = r.AttrStrings("srcs")
 				for _, source := range roots {
@@ -209,7 +197,7 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 				if e := r.AttrString("edition"); e != "" {
 					aggregateEdition = e
 				}
-				plans = append(plans, plan{name: r.Name(), root: "@aggregate:" + r.Name(), roots: roots, kind: kind, edition: aggregateEdition, existing: r, mainGen: mainGen})
+				plans = append(plans, plan{name: r.Name(), root: "@aggregate:" + r.Name(), roots: roots, kind: kind, edition: aggregateEdition, existing: r})
 				continue
 			}
 			if root == "" {
@@ -487,36 +475,6 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 		if len(p.roots) == 0 {
 			r.SetAttr("crate_root", filepath.ToSlash(p.root))
-		} else {
-			mainName := p.name + "_main"
-			if p.mainGen != nil {
-				mainName = p.mainGen.Name()
-			}
-			if p.mainGen == nil && args.File != nil {
-				collision := false
-				for _, existing := range args.File.Rules {
-					if existing.Name() == mainName {
-						collision = true
-					}
-				}
-				if collision {
-					diagnostic(args.Config, "gazelle_rs: %s: generated test main %q is already owned; declare a rust_test_main_gen and reference it with crate_root", args.Rel, mainName)
-					continue
-				}
-			}
-			main := rule.NewRule("rust_test_main_gen", mainName)
-			main.SetAttr("srcs", p.roots)
-			main.SetAttr("testonly", true)
-			main.SetAttr("visibility", []string{"//visibility:private"})
-			if p.existing != nil {
-				if value := p.existing.Attr("target_compatible_with"); value != nil {
-					main.SetAttr("target_compatible_with", value)
-				}
-			}
-			r.SetAttr("crate_root", ":"+mainName)
-			r.SetAttr("srcs", append([]string{":" + mainName}, srcs...))
-			result.Gen = append(result.Gen, main)
-			result.Imports = append(result.Imports, nil)
 		}
 		r.SetAttr("edition", p.edition)
 		cn := crateName(p.name)
