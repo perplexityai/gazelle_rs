@@ -69,9 +69,13 @@ See `test_support/test_rules.bzl` for a working caller. Do not check in generate
 Gazelle does not generate helper targets, loads, or labels.
 
 Module name = basename minus `.test.rs`, with `-` changed to `_`.
-Names must be unique ASCII Rust identifiers. No `_`, `self`, `super`, `crate`,
-or `Self`. Other keywords use raw identifiers. Duplicate basenames or custom
-module layouts need an explicit root.
+Repeated basenames use package-relative paths: `cache/store.test.rs` becomes
+`cache__store`, and `db/store.test.rs` becomes `db__store`. `/` becomes `__`;
+hyphens become underscores. Unique basenames keep their existing module names.
+
+Names must be ASCII Rust identifiers. No `_`, `self`, `super`, `crate`, or `Self`.
+Other keywords use raw identifiers. If normalized names still collide, or a
+custom module layout is needed, supply an explicit root.
 
 Existing aggregates keep their names. New files join the single aggregate.
 Multiple aggregates need explicit member assignments. Explicit roots own their
