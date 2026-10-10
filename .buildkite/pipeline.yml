@@ -110,16 +110,8 @@ steps:
   key: release-smoke-oss
   agents:
     queue: oss
-  command:
-  - buildkite-agent cache restore --name bazel
-  - bash .buildkite/run.sh release-smoke
-  - buildkite-agent cache save --name bazel
+  command: bash .buildkite/run.sh release-smoke
   timeout_in_minutes: 10
-  cache:
-    name: gazelle-rs-release-smoke-oss
-    size: 40g
-    paths:
-    - "/tmp/gazelle-rs-ci"
   artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
 - label: Verify hooks
   key: verify-hooks
