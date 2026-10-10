@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1 (2026-10-10)
+
+## What's Changed
+* fix: allow repeated sibling test filenames in generated roots by @longlho in https://github.com/perplexityai/gazelle_rs/pull/26
+* ci: migrate CI to Buildkite by @longlho in https://github.com/perplexityai/gazelle_rs/pull/28
+
+
+**Full Changelog**: https://github.com/perplexityai/gazelle_rs/compare/v1.2.0...v1.2.1
+
 ## 1.2.0 (2026-10-09)
 
 ## What's Changed
