@@ -578,7 +578,9 @@ directive. The macro generates a main when no explicit `crate_root` is supplied.
 The independent `rust_test_main_gen` rule in `@gazelle_rs//:defs.bzl` remains
 available for this; `test_support/test_rules.bzl` shows a symbolic macro using it.
 Member module names come from file basenames with `.test.rs` removed and hyphens
-replaced by underscores. Duplicate names require an explicit crate root.
+replaced by underscores. Repeated basenames are qualified by their package-relative
+paths (`cache/store.test.rs` becomes `cache__store`, for example). Remaining
+normalization collisions require an explicit crate root.
 
 Existing rootless aggregates keep their names and gain newly discovered test
 files. Multiple aggregates require explicit member assignments. Explicit roots
