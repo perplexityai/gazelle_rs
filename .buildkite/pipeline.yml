@@ -1,0 +1,121 @@
+---
+agents:
+  queue: oss
+steps:
+- label: bazel 9.0.0 test (linux-x86_64)
+  key: test-oss-9-0-0
+  agents:
+    queue: oss
+  command:
+  - buildkite-agent cache restore --name bazel
+  - bash .buildkite/run.sh test
+  - buildkite-agent cache save --name bazel
+  timeout_in_minutes: 60
+  cache:
+    name: gazelle-rs-test-oss-9-0-0
+    size: 40g
+    paths:
+    - "/tmp/gazelle-rs-ci"
+  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
+  env:
+    USE_BAZEL_VERSION: 9.0.0
+- label: examples / bazel 9.0.0
+  key: examples-oss-9-0-0
+  agents:
+    queue: oss
+  command:
+  - buildkite-agent cache restore --name bazel
+  - bash .buildkite/run.sh examples
+  - buildkite-agent cache save --name bazel
+  timeout_in_minutes: 60
+  cache:
+    name: gazelle-rs-examples-oss-9-0-0
+    size: 40g
+    paths:
+    - "/tmp/gazelle-rs-ci"
+  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
+  env:
+    USE_BAZEL_VERSION: 9.0.0
+- label: macOS smoke / bazel 9.0.0
+  key: smoke-oss_darwin_arm64-9-0-0
+  agents:
+    queue: oss_darwin_arm64
+  command:
+  - buildkite-agent cache restore --name bazel
+  - bash .buildkite/run.sh smoke
+  - buildkite-agent cache save --name bazel
+  timeout_in_minutes: 60
+  cache:
+    name: gazelle-rs-smoke-oss-darwin-arm64-9-0-0
+    size: 40g
+    paths:
+    - "/tmp/gazelle-rs-ci"
+  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
+  env:
+    USE_BAZEL_VERSION: 9.0.0
+  if: build.pull_request.id == null
+- label: bazel 8.6.0 test (linux-x86_64)
+  key: test-oss-8-6-0
+  agents:
+    queue: oss
+  command:
+  - buildkite-agent cache restore --name bazel
+  - bash .buildkite/run.sh test
+  - buildkite-agent cache save --name bazel
+  timeout_in_minutes: 60
+  cache:
+    name: gazelle-rs-test-oss-8-6-0
+    size: 40g
+    paths:
+    - "/tmp/gazelle-rs-ci"
+  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
+  env:
+    USE_BAZEL_VERSION: 8.6.0
+- label: examples / bazel 8.6.0
+  key: examples-oss-8-6-0
+  agents:
+    queue: oss
+  command:
+  - buildkite-agent cache restore --name bazel
+  - bash .buildkite/run.sh examples
+  - buildkite-agent cache save --name bazel
+  timeout_in_minutes: 60
+  cache:
+    name: gazelle-rs-examples-oss-8-6-0
+    size: 40g
+    paths:
+    - "/tmp/gazelle-rs-ci"
+  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
+  env:
+    USE_BAZEL_VERSION: 8.6.0
+- label: macOS smoke / bazel 8.6.0
+  key: smoke-oss_darwin_arm64-8-6-0
+  agents:
+    queue: oss_darwin_arm64
+  command:
+  - buildkite-agent cache restore --name bazel
+  - bash .buildkite/run.sh smoke
+  - buildkite-agent cache save --name bazel
+  timeout_in_minutes: 60
+  cache:
+    name: gazelle-rs-smoke-oss-darwin-arm64-8-6-0
+    size: 40g
+    paths:
+    - "/tmp/gazelle-rs-ci"
+  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
+  env:
+    USE_BAZEL_VERSION: 8.6.0
+  if: build.pull_request.id == null
+- label: Release packaging smoke
+  key: release-smoke-oss
+  agents:
+    queue: oss
+  command: bash .buildkite/run.sh release-smoke
+  timeout_in_minutes: 10
+  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
+- label: Verify hooks
+  key: verify-hooks
+  command: bash .buildkite/verify-hooks.sh
+  agents:
+    queue: oss
+  timeout_in_minutes: 15
