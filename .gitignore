@@ -2,3 +2,6 @@ bazel-*
 /target/
 .bazelrc.user
 node_modules/
+
+# Buildkite test reports and temporary consumers.
+.buildkite-artifacts/
