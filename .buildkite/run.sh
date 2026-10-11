@@ -6,9 +6,6 @@ case "${1:-}" in
   test)
     bazelisk test //...
     ;;
-  smoke)
-    bazelisk test //rs:rs_test
-    ;;
   examples)
     for example in basic mixed_deps cargo_metadata; do
       echo "--- examples/$example"

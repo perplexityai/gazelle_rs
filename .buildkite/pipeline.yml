@@ -26,19 +26,6 @@ steps:
   artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
   env:
     USE_BAZEL_VERSION: 9.0.0
-- label: macOS smoke / bazel 9.0.0
-  key: smoke-oss_darwin_arm64-9-0-0
-  agents:
-    queue: oss_darwin_arm64
-  command:
-  - buildkite-agent cache restore --registry oss-ci-v2 --name bazel
-  - bash .buildkite/run.sh smoke
-  - buildkite-agent cache save --registry oss-ci-v2 --name bazel
-  timeout_in_minutes: 60
-  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
-  env:
-    USE_BAZEL_VERSION: 9.0.0
-  if: build.pull_request.id == null
 - label: bazel 8.6.0 test (linux-x86_64)
   key: test-oss-8-6-0
   agents:
@@ -63,19 +50,6 @@ steps:
   artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
   env:
     USE_BAZEL_VERSION: 8.6.0
-- label: macOS smoke / bazel 8.6.0
-  key: smoke-oss_darwin_arm64-8-6-0
-  agents:
-    queue: oss_darwin_arm64
-  command:
-  - buildkite-agent cache restore --registry oss-ci-v2 --name bazel
-  - bash .buildkite/run.sh smoke
-  - buildkite-agent cache save --registry oss-ci-v2 --name bazel
-  timeout_in_minutes: 60
-  artifact_paths: ".buildkite-artifacts/**/*;bazel-testlogs/**/test.log;bazel-testlogs/**/test.xml;examples/*/bazel-testlogs/**/test.log;examples/*/bazel-testlogs/**/test.xml;bcr_test/bazel-testlogs/**/test.log"
-  env:
-    USE_BAZEL_VERSION: 8.6.0
-  if: build.pull_request.id == null
 - label: Release packaging smoke
   key: release-smoke-oss
   agents:
@@ -89,7 +63,68 @@ steps:
   agents:
     queue: oss
   timeout_in_minutes: 15
-
+- label: Cross-build smoke binaries / Bazel 9.0.0
+  key: smoke-build-9-0-0
+  agents:
+    queue: oss
+  command:
+  - buildkite-agent cache restore --registry oss-ci-v2 --name bazel
+  - bash .buildkite/build-smoke.sh
+  - buildkite-agent cache save --registry oss-ci-v2 --name bazel
+  env:
+    USE_BAZEL_VERSION: 9.0.0
+  timeout_in_minutes: 60
+- label: Artifact smoke / oss / Bazel 9.0.0
+  key: artifact-smoke-oss-9-0-0
+  depends_on: smoke-build-9-0-0
+  agents:
+    queue: oss
+  command: bash .buildkite/smoke.sh
+  env:
+    USE_BAZEL_VERSION: 9.0.0
+    SMOKE_PRODUCER_STEP: smoke-build-9-0-0
+  timeout_in_minutes: 15
+- label: Artifact smoke / oss_darwin_arm64 / Bazel 9.0.0
+  key: artifact-smoke-oss_darwin_arm64-9-0-0
+  depends_on: smoke-build-9-0-0
+  agents:
+    queue: oss_darwin_arm64
+  command: bash .buildkite/smoke.sh
+  env:
+    USE_BAZEL_VERSION: 9.0.0
+    SMOKE_PRODUCER_STEP: smoke-build-9-0-0
+  timeout_in_minutes: 15
+- label: Cross-build smoke binaries / Bazel 8.6.0
+  key: smoke-build-8-6-0
+  agents:
+    queue: oss
+  command:
+  - buildkite-agent cache restore --registry oss-ci-v2 --name bazel
+  - bash .buildkite/build-smoke.sh
+  - buildkite-agent cache save --registry oss-ci-v2 --name bazel
+  env:
+    USE_BAZEL_VERSION: 8.6.0
+  timeout_in_minutes: 60
+- label: Artifact smoke / oss / Bazel 8.6.0
+  key: artifact-smoke-oss-8-6-0
+  depends_on: smoke-build-8-6-0
+  agents:
+    queue: oss
+  command: bash .buildkite/smoke.sh
+  env:
+    USE_BAZEL_VERSION: 8.6.0
+    SMOKE_PRODUCER_STEP: smoke-build-8-6-0
+  timeout_in_minutes: 15
+- label: Artifact smoke / oss_darwin_arm64 / Bazel 8.6.0
+  key: artifact-smoke-oss_darwin_arm64-8-6-0
+  depends_on: smoke-build-8-6-0
+  agents:
+    queue: oss_darwin_arm64
+  command: bash .buildkite/smoke.sh
+  env:
+    USE_BAZEL_VERSION: 8.6.0
+    SMOKE_PRODUCER_STEP: smoke-build-8-6-0
+  timeout_in_minutes: 15
 notify:
 - github_commit_status:
     context: release-ready/gazelle-rs
