@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/perplexityai/gazelle_rs/compare/v1.2.0...v1.2.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* allow repeated sibling test filenames in generated roots ([#26](https://github.com/perplexityai/gazelle_rs/issues/26)) ([885ba21](https://github.com/perplexityai/gazelle_rs/commit/885ba210217e6cb5fd890096f940194fedeb98d7))
+* generate snake-case sibling test module names ([#31](https://github.com/perplexityai/gazelle_rs/issues/31)) ([b776ea6](https://github.com/perplexityai/gazelle_rs/commit/b776ea6a85663af87ba859f4c064e1b2d4958c4d))
+
 ## 1.2.0 (2026-10-09)
 
 ## What's Changed
