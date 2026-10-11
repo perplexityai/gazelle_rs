@@ -70,7 +70,7 @@ Gazelle does not generate helper targets, loads, or labels.
 
 Module name = basename minus `.test.rs`, with `-` changed to `_`.
 Repeated basenames use package-relative paths: `cache/store.test.rs` becomes
-`cache__store`, and `db/store.test.rs` becomes `db__store`. `/` becomes `__`;
+`cache_store`, and `db/store.test.rs` becomes `db_store`. `/` becomes `_`;
 hyphens become underscores. Unique basenames keep their existing module names.
 
 Names must be ASCII Rust identifiers. No `_`, `self`, `super`, `crate`, or `Self`.

@@ -14,6 +14,7 @@ def _aggregate_test_impl(name, visibility, srcs, crate_root, crate, **kwargs):
         )
         crate_root = ":" + name + "_main"
         srcs = srcs + [crate_root]
+    kwargs["rustc_flags"] = (kwargs.get("rustc_flags") or []) + ["-Dwarnings"]
     _rust_test(
         name = name,
         visibility = visibility,

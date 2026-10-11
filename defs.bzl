@@ -16,7 +16,7 @@ def _root_impl(ctx):
         relative = src.short_path.removeprefix(ctx.label.package + "/") if ctx.label.package else src.short_path
         module = src.basename.removesuffix(".test.rs").replace("-", "_")
         if basenames[module] > 1:
-            module = relative.removesuffix(".test.rs").replace("/", "__").replace("-", "_")
+            module = relative.removesuffix(".test.rs").replace("/", "_").replace("-", "_")
         if not module or module in ["self", "super", "crate", "Self", "_"] or module[0] in "0123456789" or any([c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_" for c in module.elems()]):
             fail("invalid test module {}; set crate_root explicitly".format(module))
         if module in modules:
