@@ -1,6 +1,6 @@
 # Buildkite CI
 
-Linux tests/examples and macOS non-PR smoke on Bazel 9.0.0/8.6.0; release packaging smoke; commit hooks.
+Linux tests/examples and Linux/macOS artifact smoke on Bazel 9.0.0/8.6.0; release packaging smoke; commit hooks.
 
 ```mermaid
 flowchart TD
