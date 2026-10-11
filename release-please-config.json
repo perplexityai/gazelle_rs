@@ -1,7 +1,7 @@
 {
   "release-type": "simple",
   "include-component-in-tag": false,
-  "changelog-type": "github",
+  "changelog-type": "default",
   "packages": {
     ".": {
       "package-name": "gazelle_rs",
