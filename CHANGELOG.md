@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.3](https://github.com/perplexityai/gazelle_rs/compare/v1.2.2...v1.2.3) (2026-10-15)
+
+
+### Bug Fixes
+
+* preserve rules with macro-declared source modules ([#38](https://github.com/perplexityai/gazelle_rs/issues/38)) ([f24549d](https://github.com/perplexityai/gazelle_rs/commit/f24549df05a79437997d29a98afd99ac3ddc7d6c))
+
 ## [1.2.2](https://github.com/perplexityai/gazelle_rs/compare/v1.2.1...v1.2.2) (2026-10-15)
 
 
