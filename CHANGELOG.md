@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.2](https://github.com/perplexityai/gazelle_rs/compare/v1.2.1...v1.2.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **ci:** smoke-test artifacts from one cross-build ([#33](https://github.com/perplexityai/gazelle_rs/issues/33)) ([f4e30f2](https://github.com/perplexityai/gazelle_rs/commit/f4e30f208939a00d03064dd6631fc697e5ba0104))
+* respect local bindings in renamed Rust imports ([#37](https://github.com/perplexityai/gazelle_rs/issues/37)) ([448dd94](https://github.com/perplexityai/gazelle_rs/commit/448dd947384986be83fbd1479634b8917510c96f))
+
 ## [1.2.1](https://github.com/perplexityai/gazelle_rs/compare/v1.2.0...v1.2.1) (2026-10-11)
 
 
