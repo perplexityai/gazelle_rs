@@ -203,6 +203,66 @@ fn locals(items: &[Item]) -> Names {
     names
 }
 
+// Only inspect transcribers, not matcher tokens or quoted strings. Nested token
+// groups are opaque except repetitions, whose bodies can emit module items.
+fn emits_file_module(mut cursor: syn::buffer::Cursor<'_>) -> bool {
+    while !cursor.eof() {
+        if let Some((name, mut next)) = cursor.ident() {
+            if name == "mod" {
+                if let Some((punct, rest)) = next.punct() {
+                    if punct.as_char() == '$' {
+                        next = rest;
+                    }
+                }
+                if let Some((_, rest)) = next.ident() {
+                    if rest.punct().is_some_and(|(p, _)| p.as_char() == ';') {
+                        return true;
+                    }
+                }
+            }
+        }
+        if let Some((punct, next)) = cursor.punct() {
+            if punct.as_char() == '$' {
+                if let Some((body, _, _, _)) = next.any_group() {
+                    if emits_file_module(body) {
+                        return true;
+                    }
+                }
+            }
+        }
+        let Some((_, next)) = cursor.token_tree() else {
+            break;
+        };
+        cursor = next;
+    }
+    false
+}
+
+fn macro_emits_file_module(mac: &syn::Macro) -> bool {
+    let buffer = syn::buffer::TokenBuffer::new2(mac.tokens.clone());
+    let mut cursor = buffer.begin();
+    while !cursor.eof() {
+        if let Some((equals, next)) = cursor.punct() {
+            if equals.as_char() == '=' {
+                if let Some((arrow, next)) = next.punct() {
+                    if arrow.as_char() == '>' {
+                        if let Some((body, _, _, _)) = next.any_group() {
+                            if emits_file_module(body) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let Some((_, next)) = cursor.token_tree() else {
+            break;
+        };
+        cursor = next;
+    }
+    false
+}
+
 struct Extractor {
     sources: Names,
     production_sources: Names,
@@ -211,6 +271,7 @@ struct Extractor {
     has_tests: bool,
     active: Names,
     scopes: Vec<Scope>,
+    module_macros: Vec<Names>,
 }
 impl Extractor {
     fn file(&mut self, file: &Path, module_dir: &Path, testing: bool) -> Result<(), String> {
@@ -238,6 +299,8 @@ impl Extractor {
         path_dir: &Path,
         testing: bool,
     ) -> Result<(), String> {
+        self.module_macros
+            .push(self.module_macros.last().cloned().unwrap_or_default());
         let mut local = locals(items);
         let mut quote_macros = Names::new();
         for item in items {
@@ -276,6 +339,26 @@ impl Extractor {
             })
             .collect();
         for item in items {
+            if let Item::Macro(mac) = item {
+                if let Some(name) = &mac.ident {
+                    let module_macros = self.module_macros.last_mut().unwrap();
+                    module_macros.remove(&ident(name));
+                    if mac.mac.path.is_ident("macro_rules") && macro_emits_file_module(&mac.mac) {
+                        module_macros.insert(ident(name));
+                    }
+                }
+                if mac.ident.is_none()
+                    && mac.mac.path.get_ident().is_some_and(|name| {
+                        self.module_macros.last().unwrap().contains(&ident(name))
+                    })
+                {
+                    return Err(format!(
+                        "macro {} declares file modules under {}; macro expansion is unavailable, retain explicit srcs and deps with a rule-level # keep",
+                        mac.mac.path.get_ident().unwrap(),
+                        module_dir.display()
+                    ));
+                }
+            }
             if let Item::Mod(m) = item {
                 let testing = testing || test_only(&m.attrs);
                 self.has_tests |= testing;
@@ -336,6 +419,7 @@ impl Extractor {
             }
         }
         self.scopes.pop();
+        self.module_macros.pop();
         Ok(())
     }
 }
@@ -549,6 +633,7 @@ pub fn extract(root: &str) -> Result<pb::CrateResult, String> {
         has_tests: false,
         active: Names::new(),
         scopes: Vec::new(),
+        module_macros: Vec::new(),
     };
     extractor.file(
         &root,
@@ -597,6 +682,42 @@ mod tests {
             let _ = fs::remove_dir_all(&self.0);
         }
     }
+    #[test]
+    fn rejects_invoked_module_macros_instead_of_returning_partial_sources() {
+        for source in [
+            "macro_rules! implementation_module { ($name:ident) => { pub mod $name; }; } implementation_module!(auth);",
+            "macro_rules! modules { ($($name:ident),*) => { $(mod $name;)* }; } modules!(auth);",
+            "macro_rules! modules { () => { mod auth; }; } mod child;",
+            "macro_rules! modules { () => { mod auth; }; } mod child { modules!(); }",
+        ] {
+            let f = Fixture::new(&[
+                ("lib.rs", source),
+                ("child.rs", "modules!();"),
+                ("auth.rs", "use external::Client;"),
+            ]);
+            let error = f.extract().unwrap_err();
+            assert!(error.contains("declares file modules"), "{error}");
+            assert!(error.contains("rule-level # keep"), "{error}");
+        }
+    }
+
+    #[test]
+    fn opaque_macros_do_not_infer_modules_from_names_or_quoted_tokens() {
+        for source in [
+            "macro_rules! implementation_module { ($name:ident) => { fn $name() {} }; } implementation_module!(auth);",
+            "macro_rules! modules { () => { mod auth; }; }", // unused definition
+            "macro_rules! inspect { (mod $name:ident;) => {}; } inspect!(mod auth;);",
+            r#"macro_rules! text { () => { const TEXT: &str = "mod auth;"; }; } text!();"#,
+            "macro_rules! quoted { () => { quote::quote! { mod auth; } }; } quoted!();",
+            "macro_rules! modules { () => { mod auth; }; } mod child { macro_rules! modules { () => {}; } modules!(); }",
+        ] {
+            let f = Fixture::new(&[("lib.rs", source), ("auth.rs", "use unrelated::Client;")]);
+            let result = f.extract().unwrap();
+            assert_eq!(result.sources, vec![f.0.join("lib.rs").to_string_lossy()]);
+            assert!(!result.imports.contains(&"unrelated".into()));
+        }
+    }
+
     #[test]
     fn discovers_imports_and_separates_tests_without_cargo() {
         let f = Fixture::new(&[

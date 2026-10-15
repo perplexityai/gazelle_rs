@@ -128,6 +128,7 @@ proc-macro = true
 		{name: "explicit_proc_macro", build: `rust_proc_macro(name = "custom", crate_name = "custom_macro", crate_root = "lib.rs", srcs = ["lib.rs"])`, source: "pub fn f() {}", wantRule: true},
 		{name: "computed_sources", build: `rust_library(name = "custom", crate_name = "pkg", crate_root = "lib.rs", srcs = glob(["*.rs"]))`, source: "pub fn f() {}"},
 		{name: "computed_deps", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"], deps = select({"//conditions:default": []}))`, source: "pub fn f() {}", wantRule: true, preserve: true},
+		{name: "macro_module", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs", "auth.rs"], deps = ["//old"])`, source: `macro_rules! implementation_module { ($name:ident) => { mod $name; }; } implementation_module!(auth);`},
 		{name: "missing_module", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"], deps = ["//old"])`, source: "mod missing;"},
 		{name: "package_boundary", build: `rust_library(name = "custom", crate_root = "lib.rs", srcs = ["lib.rs"])`, source: "mod nested;", nestedPackage: true},
 	} {
