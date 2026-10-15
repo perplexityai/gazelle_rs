@@ -482,3 +482,47 @@ func TestExplicitTestTargetsOwnMemberFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestKeptRulesPreserveUnresolvableDependencies(t *testing.T) {
+	for _, kind := range []string{"rust_library", "rust_binary", "rust_test"} {
+		t.Run(kind, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "lib.rs"), []byte("use macro_generated::Value; pub fn run() {}"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			build := "# keep\n" + kind + `(name = "bridge", crate_name = "bridge", crate_root = "lib.rs", srcs = ["lib.rs"], deps = ["@special//:runtime"], proc_macro_deps = ["@special//:derive"])`
+			file, err := rule.LoadData(filepath.Join(dir, "BUILD.bazel"), "", []byte(build))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := config.New()
+			c.RepoRoot = dir
+			c.Strict = true
+			rc := &resolve.Configurer{}
+			rc.RegisterFlags(nil, "", c)
+			rc.Configure(c, "", file)
+			l := NewLanguage()
+			l.Configure(c, "", file)
+			got := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir, File: file})
+			if len(got.Gen) != 1 {
+				t.Fatalf("generated %d rules, want one", len(got.Gen))
+			}
+			ix := resolve.NewRuleIndex(func(*rule.Rule, string) resolve.Resolver { return l })
+			ix.AddRule(c, file.Rules[0], file)
+			ix.Finish()
+			l.Resolve(c, ix, nil, got.Gen[0], got.Imports[0], label.New("", "", "bridge"))
+			for attr, want := range map[string][]string{
+				"deps":            {"@special//:runtime"},
+				"proc_macro_deps": {"@special//:derive"},
+			} {
+				if actual := got.Gen[0].AttrStrings(attr); !reflect.DeepEqual(actual, want) {
+					t.Fatalf("%s = %v, want %v", attr, actual, want)
+				}
+			}
+			imports := l.Imports(c, file.Rules[0], file)
+			if kind == "rust_library" && !reflect.DeepEqual(imports, []resolve.ImportSpec{{Lang: languageName, Imp: "bridge"}}) {
+				t.Fatalf("kept rule lost dependency indexing: %v", imports)
+			}
+		})
+	}
+}

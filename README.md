@@ -201,7 +201,10 @@ Explicit rules with literal sources and crate roots retain their names and
 crate names. Unrelated attributes survive Gazelle's merge. Computed `srcs`
 remain unmanaged; computed `deps`/`proc_macro_deps` are preserved, including
 custom `select` conditions and helper calls. Gazelle's
-`# keep` comments remain available for hand-maintained values. Failed parsing,
+`# keep` comments remain available for hand-maintained values. A rule-level
+`# keep` also skips dependency inference and unresolved-import diagnostics for that
+rule; libraries remain indexed for imports from other targets. Attribute-level
+keeps preserve only the annotated values during merging. Failed parsing,
 missing modules, and source graphs crossing Bazel package boundaries leave the
 affected target unchanged and produce diagnostics.
 

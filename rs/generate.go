@@ -516,7 +516,9 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		if p.kind == "rust_test" {
 			names = append(names, fact.TestImports...)
 		}
-		preserve := p.existing != nil && (!literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps"))
+		// The merger preserves kept rules, but resolution runs afterward and can
+		// still report imports that the manually maintained dependencies handle.
+		preserve := p.existing != nil && (p.existing.ShouldKeep() || !literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps"))
 		result.Gen = append(result.Gen, r)
 		result.Imports = append(result.Imports, importData{names: names, preserve: preserve})
 	}
