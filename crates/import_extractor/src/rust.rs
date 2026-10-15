@@ -407,8 +407,13 @@ impl Imports<'_> {
                 }
             }
             UseTree::Rename(n) => {
-                if absolute || !self.macros.contains(&ident(&n.ident)) {
-                    self.add(ident(&n.ident), true);
+                let name = ident(&n.ident);
+                // A re-export can rename a previously declared or imported local item.
+                if absolute
+                    || (!self.macros.contains(&name)
+                        && (!self.local.contains(&name) || own_bindings.contains(&name)))
+                {
+                    self.add(name, true);
                 }
             }
             UseTree::Group(g) => {
@@ -882,6 +887,111 @@ mod tests {
             f.extract().unwrap().imports,
             ["actual_crate", "events", "filesystem"]
         );
+    }
+
+    #[test]
+    fn explicitly_local_generated_type_reexports_are_not_crates() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            macro_rules! call_error {
+                ($name:ident) => { pub enum $name { Closed } };
+            }
+            call_error!(CallError);
+            pub use self::CallError as Error;
+            use model::*;
+            pub use model::PublicType;
+            use actual_crate as renamed;
+            "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["actual_crate", "model"]);
+    }
+
+    #[test]
+    fn qualified_enum_variant_imports_after_external_globs_are_not_crates() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            use api::*;
+            fn run() {
+                use api::Backend::{Local, Remote};
+                use api::OtherBackend::*;
+            }
+            "#,
+        )]);
+        assert_eq!(f.extract().unwrap().imports, ["api"]);
+    }
+
+    #[test]
+    fn explicitly_rooted_uppercase_crates_remain_dependencies() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            use ::Uppercase::{self, Client};
+            use ::Renamed as Alias;
+            use ::Bare;
+            extern crate Legacy;
+            pub use lowercase;
+            pub use another as renamed;
+            "#,
+        )]);
+        assert_eq!(
+            f.extract().unwrap().imports,
+            [
+                "Bare",
+                "Legacy",
+                "Renamed",
+                "Uppercase",
+                "another",
+                "lowercase"
+            ]
+        );
+    }
+
+    #[test]
+    fn external_use_roots_preserve_case_and_aliases() {
+        for (source, expected) in [
+            ("use lower::Client;", "lower"),
+            ("use Upper::Client;", "Upper"),
+            ("use Upper;", "Upper"),
+            ("use Upper as alias;", "Upper"),
+            ("use Upper::{self, Client};", "Upper"),
+            ("use Upper::*;", "Upper"),
+            ("use r#Upper::Client;", "Upper"),
+            (
+                "extern crate Upper as Äpi; fn f() { use Äpi::Client; }",
+                "Upper",
+            ),
+            ("pub use Upper::Client;", "Upper"),
+            ("use ::Upper::Client;", "Upper"),
+            ("extern crate Upper as alias;", "Upper"),
+            (
+                "use external as Upper; fn f() { use Upper::Client; }",
+                "external",
+            ),
+        ] {
+            let f = Fixture::new(&[("lib.rs", source)]);
+            assert_eq!(f.extract().unwrap().imports, [expected], "{source}");
+        }
+    }
+
+    #[test]
+    fn local_type_aliases_preserve_case() {
+        for source in [
+            "pub struct Local; pub use Local as Alias;",
+            "pub struct lowercase; pub use lowercase as Alias;",
+            "pub struct Élément; pub use Élément as Alias;",
+            "use api::lowercase; pub use lowercase as Alias;",
+            "use api::Upper; pub use Upper as Alias;",
+        ] {
+            let f = Fixture::new(&[("lib.rs", source)]);
+            let expected: Vec<&str> = if source.starts_with("use api") {
+                vec!["api"]
+            } else {
+                vec![]
+            };
+            assert_eq!(f.extract().unwrap().imports, expected, "{source}");
+        }
     }
 
     #[test]

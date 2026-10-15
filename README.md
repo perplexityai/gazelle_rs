@@ -226,6 +226,13 @@ Without Cargo metadata, external procedural macro dependencies should be
 maintained explicitly with `# keep`; a label override alone does not reveal
 their rule kind.
 
+Rust `use` roots are classified using lexical bindings rather than casing. Uppercase
+external crates work in relative `use` statements as well as explicitly rooted
+imports. Macro-generated bindings and names supplied only by external globs
+cannot be resolved lexically: qualify local re-exports (`pub use self::CallError
+as Error`) and enum imports (`use api::Backend::{Local, Remote}`), or explicitly
+import the enum before importing its variants.
+
 ## Configuration
 
 | Directive | Default | Meaning |
