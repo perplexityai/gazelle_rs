@@ -1,2 +1,1 @@
-# gazelle:resolve rs dependency //external:dependency
 # gazelle:map_kind rust_test project_rust_test //:test_rules.bzl

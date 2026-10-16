@@ -1,4 +1,0 @@
-exports_files([
-    "entry.rs",
-    "helper.rs",
-])

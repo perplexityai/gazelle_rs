@@ -130,11 +130,6 @@ module files from production sources and can generate a test compiling the
 original crate root. Inline tests alone do not create a target. New standalone
 tests should use the public API instead.
 
-Explicit roots and source lists may use same-repository file labels, including
-files exported by another Bazel package. Gazelle preserves those labels and
-requires every source reached across a package boundary to be declared explicitly.
-Generated targets and external repository labels remain manually maintained.
-
 `rust_test(crate = ...)` stays manually maintained. Explicit BUILD and Cargo test
 declarations still support custom layouts. Gazelle does not migrate them for you.
 Catalog and Cargo metadata dependency providers remain optional alternatives.

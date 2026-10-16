@@ -1,0 +1,7 @@
+load("//:test_rules.bzl", "project_rust_test")
+
+project_rust_test(
+    name = "behavior_test",
+    srcs = ["behavior.rs"],
+    crate_root = "behavior.rs",
+)
