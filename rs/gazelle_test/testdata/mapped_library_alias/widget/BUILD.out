@@ -1,0 +1,9 @@
+load("//:rules.bzl", "project_library")
+
+project_library(
+    name = "widget",
+    srcs = ["lib.rs"],
+    crate_name = "widget",
+    crate_root = "lib.rs",
+    edition = "2021",
+)

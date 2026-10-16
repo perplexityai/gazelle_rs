@@ -169,7 +169,7 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 func crateName(name string) string { return strings.ReplaceAll(name, "-", "_") }
 func baseKind(c *config.Config, kind string) string {
 	if original, ok := c.AliasMap[kind]; ok {
-		return original
+		kind = original
 	}
 	for original, mapped := range c.KindMap {
 		if mapped.KindName == kind {

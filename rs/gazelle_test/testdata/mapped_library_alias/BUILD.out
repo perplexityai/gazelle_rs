@@ -1,0 +1,2 @@
+# gazelle:map_kind rust_library project_library //:rules.bzl
+# gazelle:alias_kind project_shared_library project_library
