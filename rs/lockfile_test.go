@@ -227,3 +227,42 @@ func TestGitCatalogOverride(t *testing.T) {
 		t.Fatalf("lost explicit Git override: %+v", got)
 	}
 }
+
+func TestGitPatchedRegistryDependency(t *testing.T) {
+	for _, tc := range []struct {
+		name, manifest, source string
+		want                   bool
+	}{
+		{"selected", "[dependencies]\nwire='1'\n[patch.crates-io]\nwire={git='https://example.invalid/wire',rev='abc'}", "git+https://example.invalid/wire?rev=abc#abcdef", true},
+		{"inherited", "[workspace.dependencies]\nwire='1'\n[dependencies]\nwire={workspace=true}\n[patch.crates-io]\nwire={git='https://example.invalid/wire',rev='abc'}", "git+https://example.invalid/wire?rev=abc#abcdef", true},
+		{"patch_alias", "[dependencies]\nwire='1'\n[patch.crates-io]\npatched={package='wire',git='https://example.invalid/wire',rev='abc'}", "git+https://example.invalid/wire?rev=abc#abcdef", true},
+		{"unused_patch", "[dependencies]\nwire='1'\n[patch.crates-io]\nwire={git='https://example.invalid/wire',rev='abc'}", "registry+https://example.invalid/index", true},
+		{"wrong_revision", "[dependencies]\nwire='1'\n[patch.crates-io]\nwire={git='https://example.invalid/wire',rev='wrong'}", "git+https://example.invalid/wire?rev=abc#abcdef", false},
+		{"direct_constraint", "[dependencies]\nwire='2'\n[patch.crates-io]\nwire={git='https://example.invalid/wire',rev='abc'}", "git+https://example.invalid/wire?rev=abc#abcdef", false},
+		{"patch_constraint", "[dependencies]\nwire='1'\n[patch.crates-io]\nwire={version='2',git='https://example.invalid/wire',rev='abc'}", "git+https://example.invalid/wire?rev=abc#abcdef", false},
+		{"custom_registry", "[dependencies]\nwire={version='1',registry='private'}\n[patch.crates-io]\nwire={git='https://example.invalid/wire',rev='abc'}", "git+https://example.invalid/wire?rev=abc#abcdef", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			manifest, lock := filepath.Join(dir, "Cargo.toml"), filepath.Join(dir, "Cargo.lock")
+			if err := os.WriteFile(manifest, []byte(tc.manifest), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(lock, []byte("version=4\n[[package]]\nname='wire'\nversion='1.0.0'\nsource='"+tc.source+"'"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			index, err := loadCargoLock("@vendor", manifest, lock, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := index.candidates("consumer", "wire")
+			if tc.want {
+				if len(got) != 1 || got[0].label.String() != "@vendor//:wire" {
+					t.Fatalf("wrong patch resolution: %+v", got)
+				}
+			} else if len(got) != 0 {
+				t.Fatalf("accepted unmatched patch: %+v", got)
+			}
+		})
+	}
+}
