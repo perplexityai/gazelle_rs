@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.0](https://github.com/perplexityai/gazelle_rs/compare/v1.2.4...v1.3.0) (2026-10-16)
+
+
+### Features
+
+* **rs:** maintain explicit static-library targets ([#44](https://github.com/perplexityai/gazelle_rs/issues/44)) ([3678b53](https://github.com/perplexityai/gazelle_rs/commit/3678b5372f38af286ebad5dde0b9d03ccb5b63ff))
+* **rs:** resolve lockfile-selected Git patches ([#46](https://github.com/perplexityai/gazelle_rs/issues/46)) ([54196b6](https://github.com/perplexityai/gazelle_rs/commit/54196b6b804b18e0ee0360ce0f5c82898a7f59fd))
+* **rs:** resolve unambiguous direct Git dependencies ([#45](https://github.com/perplexityai/gazelle_rs/issues/45)) ([97f8f0d](https://github.com/perplexityai/gazelle_rs/commit/97f8f0da9473e9156e60c34a595762aff1b14ef9))
+* **rs:** support explicit shared-library targets and mappings ([#42](https://github.com/perplexityai/gazelle_rs/issues/42)) ([f49cfdb](https://github.com/perplexityai/gazelle_rs/commit/f49cfdbf9e95b7b03ea2c23aa284ea5850b42dd7))
+
 ## [1.2.4](https://github.com/perplexityai/gazelle_rs/compare/v1.2.3...v1.2.4) (2026-10-16)
 
 
