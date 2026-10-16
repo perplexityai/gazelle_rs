@@ -192,7 +192,7 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 	if args.File != nil {
 		for _, r := range args.File.Rules {
 			kind := baseKind(args.Config, r.Kind())
-			if kind != "rust_library" && kind != "rust_shared_library" && kind != "rust_proc_macro" && kind != "rust_binary" && kind != "rust_test" {
+			if kind != "rust_library" && kind != "rust_shared_library" && kind != "rust_static_library" && kind != "rust_proc_macro" && kind != "rust_binary" && kind != "rust_test" {
 				continue
 			}
 			// Owner-based tests remain manually maintained, including additional sources.

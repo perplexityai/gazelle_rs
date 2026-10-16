@@ -1,0 +1,10 @@
+load("//:rules.bzl", "project_static_library")
+
+project_static_library(
+    name = "ffi",
+    srcs = ["lib.rs"],
+    crate_name = "widget",
+    crate_root = "lib.rs",
+    crate_features = ["uniffi"],
+    rustc_flags = ["-Cpanic=abort"],
+)

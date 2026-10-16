@@ -1,0 +1,1 @@
+# gazelle:map_kind rust_static_library project_static_library //:rules.bzl
