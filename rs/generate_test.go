@@ -1,6 +1,7 @@
 package rs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -552,6 +553,37 @@ func TestExplicitSourceLabels(t *testing.T) {
 			}
 			if got := got.Imports[0].(importData).names; !reflect.DeepEqual(got, []string{"dependency"}) {
 				t.Fatalf("imports=%v", got)
+			}
+		})
+	}
+}
+
+func TestSourceLabelValidationIsPerVariant(t *testing.T) {
+	for _, invalidFirst := range []bool{false, true} {
+		t.Run(fmt.Sprint(invalidFirst), func(t *testing.T) {
+			root := t.TempDir()
+			good := `rust_test(name = "good", crate_root = ":lib.rs", srcs = [":lib.rs"])`
+			bad := `rust_test(name = "bad", crate_root = ":lib.rs", srcs = [":lib.rs", ":generated.rs"])`
+			build := good + "\n" + bad
+			if invalidFirst {
+				build = bad + "\n" + good
+			}
+			for name, contents := range map[string]string{"lib.rs": "pub fn value() -> u32 { 42 }", "BUILD.bazel": build} {
+				if err := os.WriteFile(filepath.Join(root, name), []byte(contents), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			file, err := rule.LoadFile(filepath.Join(root, "BUILD.bazel"), "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := config.New()
+			c.RepoRoot = root
+			l := NewLanguage()
+			l.Configure(c, "", file)
+			got := l.GenerateRules(language.GenerateArgs{Config: c, Dir: root, File: file})
+			if len(got.Gen) != 1 || got.Gen[0].Name() != "good" {
+				t.Fatalf("only the complete variant should be regenerated: %v", got.Gen)
 			}
 		})
 	}

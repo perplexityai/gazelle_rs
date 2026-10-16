@@ -336,9 +336,6 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 	return out, nil
 }
 func extractPlan(dir string, p plan) (*pb.CrateResult, error) {
-	if p.sourceError != nil {
-		return nil, p.sourceError
-	}
 	if (strings.ContainsAny(p.root, ":@") || strings.HasPrefix(p.root, "//")) && len(p.roots) == 0 {
 		return nil, fmt.Errorf("unsupported or missing Rust source label %q", p.root)
 	}
@@ -484,7 +481,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		if p.kind != "rust_library" && p.kind != "rust_binary" {
 			continue
 		}
-		if graph.fact == nil || len(graph.fact.TestSources) == 0 || testedRoots[p.root] || legacyOwners[p.name] {
+		if p.sourceError != nil || graph.fact == nil || len(graph.fact.TestSources) == 0 || testedRoots[p.root] || legacyOwners[p.name] {
 			continue
 		}
 		if p.existing != nil && !literalList(p.existing, "srcs") {
@@ -507,6 +504,10 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		testedRoots[p.root], seenNames[name] = true, true
 	}
 	for _, p := range active {
+		if p.sourceError != nil {
+			diagnostic(args.Config, "gazelle_rs: %s: %v (leaving target unchanged)", args.Rel, p.sourceError)
+			continue
+		}
 		root := filepath.Join(args.Dir, p.root)
 		if p.existing == nil && existingNames[p.name] {
 			diagnostic(args.Config, "gazelle_rs: %s: target name %q is already owned", args.Rel, p.name)
