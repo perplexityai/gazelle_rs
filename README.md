@@ -4,7 +4,8 @@ A Gazelle language extension for Rust, using the same architecture as
 [gazelle_py](https://github.com/perplexityai/gazelle_py): a Go language plugin,
 a Rust parser linked in-process through cgo, and protobuf across the FFI boundary.
 It generates `rules_rs` `rust_library`, `rust_binary`, `rust_test`, and
-`rust_proc_macro` targets, and maintains explicit `rust_shared_library` targets.
+`rust_proc_macro` targets, and maintains explicit `rust_shared_library` and
+`rust_static_library` targets.
 
 **Internal crate imports do not need declarations in `Cargo.toml`.** A manifest
 is optional. Gazelle indexes each library's `crate_name` and resolves source
@@ -197,14 +198,15 @@ module in `srcs` does not claim it as another crate root, and resource rules suc
 as `filegroup` do not claim compilation ownership. Owner-based tests using
 `crate = ":owner"` do not claim the owner's root.
 
-Declare shared libraries explicitly with `rust_shared_library` (or a mapped
+Declare foreign-library outputs explicitly with `rust_shared_library` or
+`rust_static_library` (or a mapped
 wrapper). Gazelle maintains their sources, dependencies, and proc-macro
-dependencies while preserving linking settings. Shared-library outputs are
-`cdylib` artifacts for foreign-language consumers, so they are not indexed as
+dependencies while preserving linking settings. These outputs are
+`cdylib` or `staticlib` artifacts for foreign-language consumers, so they are not indexed as
 Rust crate dependencies. They can coexist with `rust_library` targets using the
-same crate name. Shared-library test targets remain explicit; their foreign-host
+same crate name. Their test targets remain explicit; their foreign-host
 link settings are not automatically copied into inferred Rust test executables.
-Cargo `crate-type` declarations do not currently select this output kind.
+Cargo `crate-type` declarations do not currently select these output kinds.
 
 Explicit rules with literal sources and crate roots retain their names and
 crate names. Unrelated attributes survive Gazelle's merge. Computed `srcs`
@@ -273,6 +275,7 @@ keep Go and Proto enabled at the root and opt a subtree into Rust:
 # gazelle:lang go,proto
 # gazelle:map_kind rust_library custom_rust_library //:rules.bzl
 # gazelle:map_kind rust_shared_library custom_rust_shared_library //:rules.bzl
+# gazelle:map_kind rust_static_library custom_rust_static_library //:rules.bzl
 ```
 
 ```starlark
