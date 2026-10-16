@@ -157,3 +157,73 @@ func TestCargoVersionRequirements(t *testing.T) {
 		}
 	}
 }
+
+func TestDirectGitDependencies(t *testing.T) {
+	const source = "git+https://example.invalid/repo.git?tag=v1#0123456789abcdef0123456789abcdef01234567"
+	for _, tc := range []struct {
+		name, declaration, source, extra, imported string
+		want                                       bool
+	}{
+		{"tag", `wire = { git = "https://example.invalid/repo.git", tag = "v1" }`, source, "", "wire", true},
+		{"branch", `wire = { git = "https://example.invalid/repo.git", branch = "next" }`, "git+https://example.invalid/repo.git?branch=next#abc", "", "wire", true},
+		{"rev", `wire = { git = "https://example.invalid/repo.git", rev = "abc" }`, "git+https://example.invalid/repo.git?rev=abc#abcdef", "", "wire", true},
+		{"default", `wire = { git = "https://example.invalid/repo.git" }`, "git+https://example.invalid/repo.git#abc", "", "wire", true},
+		{"renamed", `codec = { package = "wire", git = "https://example.invalid/repo.git", tag = "v1" }`, source, "", "codec", true},
+		{"version_match", `wire = { git = "https://example.invalid/repo.git", tag = "v1", version = "1" }`, source, "", "wire", true},
+		{"version_mismatch", `wire = { git = "https://example.invalid/repo.git", tag = "v1", version = "2" }`, source, "", "wire", false},
+		{"wrong_repository", `wire = { git = "https://other.invalid/repo.git", tag = "v1" }`, source, "", "wire", false},
+		{"wrong_tag", `wire = { git = "https://example.invalid/repo.git", tag = "v2" }`, source, "", "wire", false},
+		{"wrong_ref_kind", `wire = { git = "https://example.invalid/repo.git", branch = "v1" }`, source, "", "wire", false},
+		{"missing_revision", `wire = { git = "https://example.invalid/repo.git", tag = "v1" }`, "git+https://example.invalid/repo.git?tag=v1", "", "wire", false},
+		{"registry_only", `wire = { git = "https://example.invalid/repo.git", tag = "v1" }`, "registry+https://example.invalid/index", "", "wire", false},
+		{"same_name_registry", `wire = { git = "https://example.invalid/repo.git", tag = "v1" }`, source, "[[package]]\nname='wire'\nversion='2.0.0'\nsource='registry+https://example.invalid/index'\n", "wire", false},
+		{"same_name_git", `wire = { git = "https://example.invalid/repo.git", tag = "v1" }`, source, "[[package]]\nname='wire'\nversion='2.0.0'\nsource='git+https://example.invalid/repo.git?tag=v2#def'\n", "wire", false},
+		{"transitive_only", "", source, "", "wire", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			manifest, lock := filepath.Join(dir, "Cargo.toml"), filepath.Join(dir, "Cargo.lock")
+			if err := os.WriteFile(manifest, []byte("[dependencies]\n"+tc.declaration), 0644); err != nil {
+				t.Fatal(err)
+			}
+			contents := "version=4\n[[package]]\nname='wire'\nversion='1.0.0'\nsource='" + tc.source + "'\n" + tc.extra
+			if err := os.WriteFile(lock, []byte(contents), 0644); err != nil {
+				t.Fatal(err)
+			}
+			index, err := loadCargoLock("@vendor", manifest, lock, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := index.candidates("consumer", tc.imported)
+			if !tc.want {
+				if len(got) != 0 {
+					t.Fatalf("guessed a Git dependency: %+v", got)
+				}
+			} else if len(got) != 1 || got[0].label.String() != "@vendor//:wire" || got[0].name != "wire" {
+				t.Fatalf("wrong Git dependency: %+v", got)
+			}
+		})
+	}
+}
+
+func TestGitCatalogOverride(t *testing.T) {
+	dir := t.TempDir()
+	manifest, lock, catalog := filepath.Join(dir, "Cargo.toml"), filepath.Join(dir, "Cargo.lock"), filepath.Join(dir, "catalog.json")
+	for path, content := range map[string]string{
+		manifest: "[dependencies]\nwire = { git = 'https://example.invalid/repo.git', tag = 'v1' }",
+		lock:     "version=4",
+		catalog:  `{"version":1,"crates":[{"name":"wire","label":"@custom//:wire","proc_macro":true}]}`,
+	} {
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	index, err := loadCargoLock("@vendor", manifest, lock, catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := index.candidates("consumer", "wire")
+	if len(got) != 1 || got[0].label.String() != "@custom//:wire" || !got[0].macro {
+		t.Fatalf("lost explicit Git override: %+v", got)
+	}
+}
