@@ -558,6 +558,12 @@ matched conservatively; Gazelle does not normalize repository aliases or contact
 the Git server. Transitive-only Git packages and ambiguous identities need an
 explicit override. A Git declaration never falls back to a registry package.
 
+Git entries in `[patch.crates-io]` are also supported for declared crates.io
+dependencies when a unique locked package confirms that Cargo selected the
+patch. Both the dependency's and patch's version requirements must match.
+Unused patches do not override locked registry packages. Other registries,
+multiple patch entries for one package, and path patches remain explicit.
+
 An exception replaces inference for its label. For a custom label, include the
 conventional label in its `aliases` array. Exceptions may also supply unsupported
 Git dependencies; workspace/path packages are not inferred as registry labels.

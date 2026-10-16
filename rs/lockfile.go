@@ -14,6 +14,7 @@ type cargoLockDependency struct {
 	Version   string
 	Path      string
 	Git       string
+	Registry  string
 	Tag       string
 	Branch    string
 	Rev       string
@@ -31,6 +32,7 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 	var manifest struct {
 		Dependencies map[string]toml.Primitive
 		Workspace    struct{ Dependencies map[string]toml.Primitive }
+		Patch        map[string]map[string]toml.Primitive
 	}
 	md, err := toml.DecodeFile(manifestFile, &manifest)
 	if err != nil {
@@ -54,6 +56,17 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 			}
 			declarations[name] = dep
 		}
+	}
+	patches := map[string][]cargoLockDependency{}
+	for name, raw := range manifest.Patch["crates-io"] {
+		var patch cargoLockDependency
+		if err := md.PrimitiveDecode(raw, &patch); err != nil {
+			return nil, fmt.Errorf("patch %s: %w", name, err)
+		}
+		if patch.Package == "" {
+			patch.Package = name
+		}
+		patches[patch.Package] = append(patches[patch.Package], patch)
 	}
 	var lock struct {
 		Version int
@@ -134,6 +147,20 @@ func loadCargoLock(repository, manifestFile, lockFile, exceptionsFile string) (*
 	selected := map[string][]externalCrate{}
 	packageSelections := map[string][]externalCrate{}
 	for name, dep := range declarations {
+		// A patch is a candidate source, not an unconditional replacement.
+		// Only use it when the lockfile confirms that Cargo selected it.
+		if dep.Git == "" && dep.Path == "" && dep.Registry == "" && dep.Version != "" {
+			candidates, packages := patches[dep.Package], byPackage[dep.Package]
+			if len(candidates) == 1 && len(packages) == 1 {
+				patch := candidates[0]
+				if patch.Git != "" && patch.Path == "" && matchesGitSource(patch, packages[0].Source) {
+					dep.Git, dep.Tag, dep.Branch, dep.Rev = patch.Git, patch.Tag, patch.Branch, patch.Rev
+					if patch.Version != "" {
+						dep.Version += ", " + patch.Version
+					}
+				}
+			}
+		}
 		if dep.Git != "" {
 			// The unversioned hub alias is safe only with one locked identity.
 			// Never fall back to a registry crate for an unmatched Git declaration.
