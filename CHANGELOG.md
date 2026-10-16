@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.4](https://github.com/perplexityai/gazelle_rs/compare/v1.2.3...v1.2.4) (2026-10-16)
+
+
+### Bug Fixes
+
+* **rs:** generate targets in nested test-only packages ([#40](https://github.com/perplexityai/gazelle_rs/issues/40)) ([5b30f80](https://github.com/perplexityai/gazelle_rs/commit/5b30f8062eddc4ef610a0a45c0e905a00f5ac542))
+
 ## [1.2.3](https://github.com/perplexityai/gazelle_rs/compare/v1.2.2...v1.2.3) (2026-10-15)
 
 
