@@ -26,14 +26,14 @@ func (*rustLang) Fix(*config.Config, *rule.File)                      {}
 func (*rustLang) Embeds(*rule.Rule, label.Label) []label.Label        { return nil }
 func (*rustLang) Kinds() map[string]rule.KindInfo {
 	out := map[string]rule.KindInfo{}
-	for _, kind := range []string{"rust_library", "rust_binary", "rust_test", "rust_proc_macro"} {
+	for _, kind := range []string{"rust_library", "rust_shared_library", "rust_binary", "rust_test", "rust_proc_macro"} {
 		out[kind] = rule.KindInfo{NonEmptyAttrs: map[string]bool{"name": true}, MergeableAttrs: map[string]bool{"srcs": true}, ResolveAttrs: map[string]bool{"deps": true, "proc_macro_deps": true, "aliases": true}}
 	}
 	return out
 }
 func (*rustLang) Loads() []rule.LoadInfo {
 	var out []rule.LoadInfo
-	for _, kind := range []string{"rust_library", "rust_binary", "rust_test", "rust_proc_macro"} {
+	for _, kind := range []string{"rust_library", "rust_shared_library", "rust_binary", "rust_test", "rust_proc_macro"} {
 		load := "@rules_rs//rs:" + kind + ".bzl"
 		out = append(out, rule.LoadInfo{Name: load, Symbols: []string{kind}})
 	}
@@ -143,7 +143,7 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	if cfg.owned && cfg.owner != rel && f != nil {
 		for _, r := range f.Rules {
 			switch baseKind(c, r.Kind()) {
-			case "rust_library", "rust_binary", "rust_proc_macro", "rust_test":
+			case "rust_library", "rust_shared_library", "rust_binary", "rust_proc_macro", "rust_test":
 				cfg.owned = false
 			}
 		}
