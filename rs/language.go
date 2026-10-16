@@ -143,7 +143,7 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	if cfg.owned && cfg.owner != rel && f != nil {
 		for _, r := range f.Rules {
 			switch baseKind(c, r.Kind()) {
-			case "rust_library", "rust_binary", "rust_proc_macro":
+			case "rust_library", "rust_binary", "rust_proc_macro", "rust_test":
 				cfg.owned = false
 			}
 		}
