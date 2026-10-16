@@ -1,0 +1,10 @@
+load("@rules_rs//rs:rust_shared_library.bzl", "rust_shared_library")
+
+rust_shared_library(
+    name = "ffi",
+    srcs = ["lib.rs"],
+    crate_name = "widget",
+    crate_root = "lib.rs",
+    crate_features = ["python"],
+    rustc_flags = ["-Cpanic=abort"],
+)

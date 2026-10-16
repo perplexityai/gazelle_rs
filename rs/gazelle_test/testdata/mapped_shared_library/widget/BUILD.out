@@ -1,6 +1,6 @@
-load("//:rules.bzl", "project_library")
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
 
-project_library(
+rust_library(
     name = "widget",
     srcs = ["lib.rs"],
     crate_name = "widget",

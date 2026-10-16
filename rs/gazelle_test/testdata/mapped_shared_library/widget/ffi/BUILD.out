@@ -6,8 +6,10 @@ project_shared_library(
         "lib.rs",
         "support.rs",
     ],
-    crate_name = "ffi",
+    crate_features = ["python"],
+    crate_name = "widget",
     crate_root = "lib.rs",
     edition = "2021",
+    rustc_flags = ["-Cpanic=abort"],
     deps = ["//widget"],
 )
