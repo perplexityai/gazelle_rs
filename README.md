@@ -550,10 +550,18 @@ kinds. Record those exceptions using the existing version-1 crate catalog format
 ]}
 ```
 
+Direct Git dependencies also use `@crates//:<package>` when the lockfile contains
+exactly one package with that name and its repository URL and tag, branch, or
+revision match the manifest. Optional version requirements must match too.
+Workspace-inherited and renamed declarations are supported. URL spelling is
+matched conservatively; Gazelle does not normalize repository aliases or contact
+the Git server. Transitive-only Git packages and ambiguous identities need an
+explicit override. A Git declaration never falls back to a registry package.
+
 An exception replaces inference for its label. For a custom label, include the
-conventional versioned label in its `aliases` array. Exceptions may also supply
-git dependencies; workspace/path and git packages are not inferred as registry
-labels. Conflicting registry sources for the same package/version are rejected.
+conventional label in its `aliases` array. Exceptions may also supply unsupported
+Git dependencies; workspace/path packages are not inferred as registry labels.
+Conflicting registry sources for the same package/version are rejected.
 The crate hub must actually export the conventional labels, and imports from
 non-library packages still need an explicit mapping.
 

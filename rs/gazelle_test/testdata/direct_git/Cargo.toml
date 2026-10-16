@@ -1,0 +1,5 @@
+[workspace.dependencies]
+codec = { package = "wire-codec", git = "https://example.invalid/repo.git", tag = "v1" }
+[dependencies]
+codec = { workspace = true }
+git-util = { git = "https://example.invalid/repo.git", tag = "v1" }
