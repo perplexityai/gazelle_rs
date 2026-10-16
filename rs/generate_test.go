@@ -483,3 +483,76 @@ func TestExplicitTestTargetsOwnMemberFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestExplicitSourceLabels(t *testing.T) {
+	for _, tc := range []struct {
+		name, root, srcs string
+		want             []string
+		success          bool
+	}{
+		{"relative_label", ":lib.rs", `[":lib.rs", "helper.rs"]`, []string{":lib.rs", "helper.rs"}, true},
+		{"absolute_label", "//app:lib.rs", `["//app:lib.rs", "helper.rs"]`, []string{"//app:lib.rs", "helper.rs"}, true},
+		{"sibling_package", "//shared:lib.rs", `["//shared:lib.rs", "//shared:helper.rs"]`, []string{"//shared:helper.rs", "//shared:lib.rs"}, true},
+		{"nested_package", "//app/nested:lib.rs", `["//app/nested:lib.rs", "//app/nested:helper.rs"]`, []string{"//app/nested:helper.rs", "//app/nested:lib.rs"}, true},
+		{"mislabelled_nested_package", "//app:nested/lib.rs", `["//app:nested/lib.rs", "//app:nested/helper.rs"]`, nil, false},
+		{"traversal_label", "//shared:../shared/lib.rs", `["//shared:../shared/lib.rs"]`, nil, false},
+		{"unlisted_sibling_module", "//shared:lib.rs", `["//shared:lib.rs"]`, nil, false},
+		{"external_repository", "@other//app:lib.rs", `["@other//app:lib.rs"]`, nil, false},
+		{"generated_source", ":generated.rs", `[":generated.rs"]`, nil, false},
+		{"generated_helper", "//shared:lib.rs", `["//shared:lib.rs", "//shared:helper.rs", ":generated.rs"]`, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, pkg := range []string{"app", "shared", "app/nested"} {
+				dir := filepath.Join(root, pkg)
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				for name, contents := range map[string]string{
+					"BUILD.bazel": "",
+					"lib.rs":      "mod helper; pub fn value() -> u32 { helper::value() }",
+					"helper.rs":   "pub fn value() -> u32 { dependency::value() }",
+				} {
+					if err := os.WriteFile(filepath.Join(dir, name), []byte(contents), 0644); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			// Do not discover a second crate when the explicit target uses a label.
+			if tc.name != "relative_label" && tc.name != "absolute_label" {
+				if err := os.Remove(filepath.Join(root, "app/lib.rs")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			text := `rust_test(name = "custom", crate_root = "` + tc.root + `", srcs = ` + tc.srcs + `, deps = ["//old"])`
+			file, err := rule.LoadData(filepath.Join(root, "app/BUILD.bazel"), "app", []byte(text))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := config.New()
+			c.RepoRoot = root
+			l := NewLanguage()
+			l.Configure(c, "app", file)
+			got := l.GenerateRules(language.GenerateArgs{Config: c, Dir: filepath.Join(root, "app"), Rel: "app", File: file})
+			if !tc.success {
+				if len(got.Gen) != 0 {
+					t.Fatalf("unsafe source graph generated rules: %v", got.Gen)
+				}
+				return
+			}
+			if len(got.Gen) != 1 {
+				t.Fatalf("generated %d rules, want exactly one explicit test", len(got.Gen))
+			}
+			r := got.Gen[0]
+			if r.Name() != "custom" || r.Kind() != "rust_test" || r.AttrString("crate_root") != tc.root {
+				t.Fatalf("lost explicit target identity: %s", r)
+			}
+			if !reflect.DeepEqual(r.AttrStrings("srcs"), tc.want) {
+				t.Fatalf("srcs=%v, want %v", r.AttrStrings("srcs"), tc.want)
+			}
+			if got := got.Imports[0].(importData).names; !reflect.DeepEqual(got, []string{"dependency"}) {
+				t.Fatalf("imports=%v", got)
+			}
+		})
+	}
+}

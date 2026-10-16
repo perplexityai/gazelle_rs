@@ -1,6 +1,7 @@
 package rs
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bazelbuild/buildtools/build"
@@ -31,6 +33,9 @@ type manifest struct {
 type plan struct {
 	name, root, kind, edition string
 	roots                     []string
+	rootLabel                 string
+	sourceLabels              map[string]string
+	sourceError               error
 	existing                  *rule.Rule
 	autoTest                  bool
 	owner                     *rule.Rule
@@ -99,6 +104,75 @@ func seedResolveAttrs(dst, src *rule.Rule) {
 	if value := src.Attr("aliases"); value != nil {
 		dst.SetAttr("aliases", aliasValue{value})
 	}
+}
+
+// sourcePath resolves only existing source files in this repository. External labels
+// and generated targets are not filesystem paths and must remain user-owned.
+func sourcePath(args language.GenerateArgs, value string) (string, error) {
+	if !strings.ContainsAny(value, ":@") && !strings.HasPrefix(value, "//") {
+		return filepath.Clean(value), nil
+	}
+	l, err := label.Parse(value)
+	if err != nil || l.Repo != "" || !strings.HasSuffix(l.Name, ".rs") {
+		return "", fmt.Errorf("unsupported Rust source label %q", value)
+	}
+	l = l.Abs("", args.Rel)
+	if path.Clean(l.Name) != l.Name || strings.HasPrefix(l.Name, "../") || path.IsAbs(l.Name) || (l.Pkg != "" && path.Clean(l.Pkg) != l.Pkg) {
+		return "", fmt.Errorf("invalid Rust source label %q", value)
+	}
+	packageDir := filepath.Join(args.Config.RepoRoot, filepath.FromSlash(l.Pkg))
+	packageExists := false
+	for _, buildName := range args.Config.ValidBuildFileNames {
+		buildFile := filepath.Join(packageDir, buildName)
+		if !exists(buildFile) {
+			continue
+		}
+		packageExists = true
+		f, err := rule.LoadFile(buildFile, l.Pkg)
+		if err != nil {
+			return "", err
+		}
+		for _, r := range f.Rules {
+			if r.Name() == l.Name {
+				return "", fmt.Errorf("Rust source label %q names a rule, not a source file", value)
+			}
+		}
+	}
+	if !packageExists {
+		return "", fmt.Errorf("Rust source label %q has no Bazel package", value)
+	}
+	for d := path.Dir(l.Name); d != "."; d = path.Dir(d) {
+		for _, buildName := range args.Config.ValidBuildFileNames {
+			if exists(filepath.Join(packageDir, filepath.FromSlash(d), buildName)) {
+				return "", fmt.Errorf("Rust source label %q crosses a nested Bazel package", value)
+			}
+		}
+	}
+	full := filepath.Join(args.Config.RepoRoot, filepath.FromSlash(l.Pkg), filepath.FromSlash(l.Name))
+	rel, err := filepath.Rel(args.Config.RepoRoot, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || !exists(full) {
+		return "", fmt.Errorf("Rust source label %q is not an existing source file", value)
+	}
+	return filepath.Rel(args.Dir, full)
+}
+
+func explicitPlan(args language.GenerateArgs, p plan) plan {
+	p.rootLabel = p.root
+	p.sourceLabels = map[string]string{}
+	if root, err := sourcePath(args, p.root); err == nil {
+		p.root = root
+	}
+	for _, source := range p.existing.AttrStrings("srcs") {
+		if !strings.Contains(source, ":") {
+			continue
+		}
+		if rel, err := sourcePath(args, source); err == nil {
+			p.sourceLabels[filepath.Clean(filepath.Join(args.Dir, rel))] = source
+		} else {
+			p.sourceError = err
+		}
+	}
+	return p
 }
 
 func discover(args language.GenerateArgs) ([]plan, error) {
@@ -229,11 +303,12 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 					root = r.AttrStrings("srcs")[0]
 				}
 			}
-			if root != "" {
+			if root != "" && !strings.ContainsAny(root, ":@") {
 				root = filepath.Clean(root)
 			}
+			resolvedRoot, _ := sourcePath(args, root)
 			for i := len(plans) - 1; i >= 0; i-- {
-				if plans[i].existing == nil && ((root != "" && plans[i].root == root) || plans[i].name == r.Name()) {
+				if plans[i].existing == nil && ((root != "" && plans[i].root == resolvedRoot) || plans[i].name == r.Name()) {
 					plans = append(plans[:i], plans[i+1:]...)
 				}
 			}
@@ -242,7 +317,7 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 				if e := r.AttrString("edition"); e != "" {
 					existingEdition = e
 				}
-				plans = append(plans, plan{name: r.Name(), root: filepath.Clean(root), kind: kind, edition: existingEdition, existing: r})
+				plans = append(plans, explicitPlan(args, plan{name: r.Name(), root: root, kind: kind, edition: existingEdition, existing: r}))
 			}
 		}
 	}
@@ -261,6 +336,12 @@ func discover(args language.GenerateArgs) ([]plan, error) {
 	return out, nil
 }
 func extractPlan(dir string, p plan) (*pb.CrateResult, error) {
+	if p.sourceError != nil {
+		return nil, p.sourceError
+	}
+	if (strings.ContainsAny(p.root, ":@") || strings.HasPrefix(p.root, "//")) && len(p.roots) == 0 {
+		return nil, fmt.Errorf("unsupported or missing Rust source label %q", p.root)
+	}
 	roots := []string{filepath.Join(dir, p.root)}
 	if len(p.roots) > 0 {
 		roots = nil
@@ -422,7 +503,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		if owner == nil {
 			owner = rule.NewRule(p.kind, p.name)
 		}
-		active = append(active, plan{name: name, root: p.root, kind: "rust_test", edition: p.edition, owner: owner})
+		active = append(active, plan{name: name, root: p.root, rootLabel: p.rootLabel, sourceLabels: p.sourceLabels, kind: "rust_test", edition: p.edition, owner: owner})
 		testedRoots[p.root], seenNames[name] = true, true
 	}
 	for _, p := range active {
@@ -462,6 +543,10 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			if p.kind != "rust_test" && testSources[src] {
 				continue
 			}
+			if sourceLabel, ok := p.sourceLabels[filepath.Clean(src)]; ok {
+				srcs = append(srcs, sourceLabel)
+				continue
+			}
 			rel, err := filepath.Rel(args.Dir, src)
 			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 				diagnostic(args.Config, "gazelle_rs: source outside package: %s", src)
@@ -495,7 +580,11 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			}
 		}
 		if len(p.roots) == 0 {
-			r.SetAttr("crate_root", filepath.ToSlash(p.root))
+			rootLabel := p.rootLabel
+			if rootLabel == "" {
+				rootLabel = filepath.ToSlash(p.root)
+			}
+			r.SetAttr("crate_root", rootLabel)
 		}
 		r.SetAttr("edition", p.edition)
 		cn := crateName(p.name)

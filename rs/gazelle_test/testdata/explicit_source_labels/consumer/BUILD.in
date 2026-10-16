@@ -1,0 +1,8 @@
+load("//:test_rules.bzl", "project_rust_test")
+
+project_rust_test(
+    name = "custom",
+    srcs = ["//shared:entry.rs", "//shared:helper.rs"],
+    crate_root = "//shared:entry.rs",
+    deps = ["//stale:dependency"],
+)
