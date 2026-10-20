@@ -50,20 +50,25 @@ type rustConfig struct {
 	kindMap            map[string]config.MappedKind
 	cargo              *cargoIndex
 	procMacros         map[string]bool
+	cfgLabels          map[string]string
 }
 
 func getConfig(c *config.Config) *rustConfig {
 	if v, ok := c.Exts[languageName].(*rustConfig); ok {
 		return v
 	}
-	return &rustConfig{enabled: true, edition: "2021"}
+	return &rustConfig{enabled: true, edition: "2021", cfgLabels: defaultCfgLabels()}
 }
 func (*rustLang) KnownDirectives() []string {
-	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog", "rust_cargo_lock", "rust_proc_macro"}
+	return []string{"rust_extension", "rust_edition", "rust_crate_name", "rust_visibility", "rust_cargo_metadata", "rust_crate_catalog", "rust_cargo_lock", "rust_proc_macro", "rust_cfg"}
 }
 func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 	cfg := *getConfig(c)
 	cfg.procMacros = maps.Clone(cfg.procMacros)
+	cfg.cfgLabels = maps.Clone(cfg.cfgLabels)
+	if cfg.cfgLabels == nil {
+		cfg.cfgLabels = defaultCfgLabels()
+	}
 	if cfg.procMacros == nil {
 		cfg.procMacros = map[string]bool{}
 	}
@@ -88,6 +93,10 @@ func (*rustLang) Configure(c *config.Config, rel string, f *rule.File) {
 				cfg.crateName = d.Value
 			case "rust_visibility":
 				cfg.visibility = strings.Fields(d.Value)
+			case "rust_cfg":
+				if err := cfgDirective(&cfg, d.Value); err != nil {
+					diagnostic(c, "gazelle_rs: %s: %v", rel, err)
+				}
 			case "rust_proc_macro":
 				for _, name := range strings.Fields(d.Value) {
 					if !rustIdentifier.MatchString(name) {

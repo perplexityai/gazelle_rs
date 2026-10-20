@@ -1,0 +1,2 @@
+gazelle: gazelle_rs: @cfg_select_unknown//app: unsupported cfg predicates (feature); retaining dependencies conservatively within known OS guards
+gazelle: gazelle_rs: @cfg_select_unknown//unmapped: no Bazel constraint for target_os=custom; add # gazelle:rust_cfg target_os=custom <label> (leaving dependencies unchanged)

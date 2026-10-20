@@ -1,0 +1,11 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "unmapped",
+    srcs = ["lib.rs"],
+    crate_name = "unmapped",
+    crate_root = "lib.rs",
+    edition = "2021",
+    proc_macro_deps = ["//old:derive"],
+    deps = ["//old:dep"],
+)

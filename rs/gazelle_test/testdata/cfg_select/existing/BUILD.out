@@ -1,0 +1,16 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "existing",
+    srcs = ["lib.rs"],
+    crate_name = "existing",
+    crate_root = "lib.rs",
+    edition = "2021",
+    deps = select({
+        "//custom/os:windows": [
+            "//generated:bindings",  # keep
+        ],
+        "@platforms//os:linux": ["//common"],
+        "//conditions:default": [],
+    }),
+)

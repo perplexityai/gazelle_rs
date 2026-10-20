@@ -7,8 +7,8 @@ use std::{
 };
 use syn::parse::Parser;
 use syn::{
-    Attribute, Item, UseTree,
     visit::{self, Visit},
+    Attribute, Item, UseTree,
 };
 
 type Names = BTreeSet<String>;
@@ -57,6 +57,66 @@ fn test_only(attrs: &[Attribute]) -> bool {
             && a.parse_args::<syn::Meta>()
                 .is_ok_and(|m| without_test(&m) == Some(false))
     })
+}
+fn cfg_meta(meta: &syn::Meta) -> pb::Cfg {
+    let mut cfg = pb::Cfg::default();
+    match meta {
+        syn::Meta::Path(path) => cfg.key = path.get_ident().map(ident).unwrap_or_default(),
+        syn::Meta::NameValue(value) => {
+            cfg.key = value.path.get_ident().map(ident).unwrap_or_default();
+            if let syn::Expr::Lit(lit) = &value.value {
+                if let syn::Lit::Str(value) = &lit.lit {
+                    cfg.value = value.value();
+                }
+            }
+        }
+        syn::Meta::List(list) => {
+            if let Ok(args) = list.parse_args_with(
+                syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+            ) {
+                cfg.op = list.path.get_ident().map(ident).unwrap_or_default();
+                cfg.args = args.iter().map(cfg_meta).collect();
+            }
+        }
+    }
+    cfg
+}
+fn with_cfg(parent: &Option<pb::Cfg>, attrs: &[Attribute]) -> Option<pb::Cfg> {
+    let mut args: Vec<_> = parent.iter().cloned().collect();
+    for attr in attrs {
+        if attr.path().is_ident("cfg") {
+            args.push(
+                attr.parse_args::<syn::Meta>()
+                    .map(|meta| cfg_meta(&meta))
+                    .unwrap_or_default(),
+            );
+        } else if attr.path().is_ident("cfg_attr")
+            && attr
+                .parse_args_with(
+                    syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+                )
+                .is_ok_and(|args| {
+                    args.iter()
+                        .skip(1)
+                        .any(|meta| meta.path().is_ident("cfg") || meta.path().is_ident("cfg_attr"))
+                })
+        {
+            // Expanding conditional attributes requires more than inspecting cfg.
+            args.push(pb::Cfg {
+                key: "cfg_attr".into(),
+                ..Default::default()
+            });
+        }
+    }
+    match args.len() {
+        0 => None,
+        1 => args.pop(),
+        _ => Some(pb::Cfg {
+            op: "all".into(),
+            args,
+            ..Default::default()
+        }),
+    }
 }
 fn bindings(tree: &UseTree, names: &mut Names, parent: Option<&syn::Ident>) {
     match tree {
@@ -269,6 +329,8 @@ struct Extractor {
     imports: Names,
     test_imports: Names,
     has_tests: bool,
+    conditional_imports: Vec<pb::ConditionalImport>,
+    condition: Option<pb::Cfg>,
     active: Names,
     scopes: Vec<Scope>,
     module_macros: Vec<Names>,
@@ -284,11 +346,14 @@ impl Extractor {
         let text = fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?;
         let ast = syn::parse_file(&text).map_err(|e| format!("{}: {e}", file.display()))?;
         let testing = testing || test_only(&ast.attrs);
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, &ast.attrs);
         if !testing {
             self.production_sources
                 .insert(file.to_string_lossy().into_owned());
         }
         self.items(&ast.items, module_dir, file.parent().unwrap(), testing)?;
+        self.condition = previous;
         self.active.remove(&key);
         Ok(())
     }
@@ -360,6 +425,8 @@ impl Extractor {
                 }
             }
             if let Item::Mod(m) = item {
+                let previous = self.condition.clone();
+                self.condition = with_cfg(&previous, &m.attrs);
                 let testing = testing || test_only(&m.attrs);
                 self.has_tests |= testing;
                 let name = ident(&m.ident);
@@ -404,6 +471,7 @@ impl Extractor {
                         };
                     self.file(&file, &next, testing)?;
                 }
+                self.condition = previous;
             } else {
                 let mut visitor = Imports {
                     local: local.clone(),
@@ -413,6 +481,8 @@ impl Extractor {
                     imports: &mut self.imports,
                     tests: &mut self.test_imports,
                     testing,
+                    condition: self.condition.clone(),
+                    conditional_imports: &mut self.conditional_imports,
                     has_tests: &mut self.has_tests,
                 };
                 visitor.visit_item(item);
@@ -432,6 +502,8 @@ struct Imports<'a> {
     tests: &'a mut Names,
     testing: bool,
     has_tests: &'a mut bool,
+    condition: Option<pb::Cfg>,
+    conditional_imports: &'a mut Vec<pb::ConditionalImport>,
 }
 impl Imports<'_> {
     fn add(&mut self, name: String, explicit: bool) {
@@ -469,6 +541,11 @@ impl Imports<'_> {
         ) {
             return;
         }
+        self.conditional_imports.push(pb::ConditionalImport {
+            name: name.clone(),
+            condition: self.condition.clone(),
+            test_only: self.testing,
+        });
         if self.testing {
             self.tests.insert(name);
         } else {
@@ -523,13 +600,131 @@ impl<'ast> Visit<'ast> for Imports<'_> {
             Item::Type(x) => &x.attrs,
             Item::Trait(x) => &x.attrs,
             Item::Macro(x) => &x.attrs,
+            Item::Mod(x) => &x.attrs,
+            Item::Union(x) => &x.attrs,
+            Item::TraitAlias(x) => &x.attrs,
+            Item::ForeignMod(x) => &x.attrs,
             _ => return visit::visit_item(self, item),
         };
+        let previous_condition = self.condition.clone();
+        self.condition = with_cfg(&previous_condition, attrs);
         let previous = self.testing;
         self.testing |= test_only(attrs) || attrs.iter().any(|a| a.path().is_ident("test"));
         *self.has_tests |= self.testing;
         visit::visit_item(self, item);
         self.testing = previous;
+        self.condition = previous_condition;
+    }
+    fn visit_expr(&mut self, expr: &'ast syn::Expr) {
+        let attrs = match expr {
+            syn::Expr::Array(x) => &x.attrs,
+            syn::Expr::Assign(x) => &x.attrs,
+            syn::Expr::Async(x) => &x.attrs,
+            syn::Expr::Await(x) => &x.attrs,
+            syn::Expr::Binary(x) => &x.attrs,
+            syn::Expr::Block(x) => &x.attrs,
+            syn::Expr::Break(x) => &x.attrs,
+            syn::Expr::Call(x) => &x.attrs,
+            syn::Expr::Cast(x) => &x.attrs,
+            syn::Expr::Closure(x) => &x.attrs,
+            syn::Expr::Const(x) => &x.attrs,
+            syn::Expr::Continue(x) => &x.attrs,
+            syn::Expr::Field(x) => &x.attrs,
+            syn::Expr::ForLoop(x) => &x.attrs,
+            syn::Expr::Group(x) => &x.attrs,
+            syn::Expr::If(x) => &x.attrs,
+            syn::Expr::Index(x) => &x.attrs,
+            syn::Expr::Infer(x) => &x.attrs,
+            syn::Expr::Let(x) => &x.attrs,
+            syn::Expr::Lit(x) => &x.attrs,
+            syn::Expr::Loop(x) => &x.attrs,
+            syn::Expr::Macro(x) => &x.attrs,
+            syn::Expr::Match(x) => &x.attrs,
+            syn::Expr::MethodCall(x) => &x.attrs,
+            syn::Expr::Paren(x) => &x.attrs,
+            syn::Expr::Path(x) => &x.attrs,
+            syn::Expr::Range(x) => &x.attrs,
+            syn::Expr::RawAddr(x) => &x.attrs,
+            syn::Expr::Reference(x) => &x.attrs,
+            syn::Expr::Repeat(x) => &x.attrs,
+            syn::Expr::Return(x) => &x.attrs,
+            syn::Expr::Struct(x) => &x.attrs,
+            syn::Expr::Try(x) => &x.attrs,
+            syn::Expr::TryBlock(x) => &x.attrs,
+            syn::Expr::Tuple(x) => &x.attrs,
+            syn::Expr::Unary(x) => &x.attrs,
+            syn::Expr::Unsafe(x) => &x.attrs,
+            syn::Expr::While(x) => &x.attrs,
+            syn::Expr::Yield(x) => &x.attrs,
+            _ => &Vec::new(),
+        };
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, attrs);
+        visit::visit_expr(self, expr);
+        self.condition = previous;
+    }
+    fn visit_field(&mut self, field: &'ast syn::Field) {
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, &field.attrs);
+        visit::visit_field(self, field);
+        self.condition = previous;
+    }
+    fn visit_impl_item(&mut self, item: &'ast syn::ImplItem) {
+        let attrs = match item {
+            syn::ImplItem::Const(x) => &x.attrs,
+            syn::ImplItem::Fn(x) => &x.attrs,
+            syn::ImplItem::Type(x) => &x.attrs,
+            syn::ImplItem::Macro(x) => &x.attrs,
+            _ => &Vec::new(),
+        };
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, attrs);
+        visit::visit_impl_item(self, item);
+        self.condition = previous;
+    }
+    fn visit_trait_item(&mut self, item: &'ast syn::TraitItem) {
+        let attrs = match item {
+            syn::TraitItem::Const(x) => &x.attrs,
+            syn::TraitItem::Fn(x) => &x.attrs,
+            syn::TraitItem::Type(x) => &x.attrs,
+            syn::TraitItem::Macro(x) => &x.attrs,
+            _ => &Vec::new(),
+        };
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, attrs);
+        visit::visit_trait_item(self, item);
+        self.condition = previous;
+    }
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, &local.attrs);
+        visit::visit_local(self, local);
+        self.condition = previous;
+    }
+    fn visit_arm(&mut self, arm: &'ast syn::Arm) {
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, &arm.attrs);
+        visit::visit_arm(self, arm);
+        self.condition = previous;
+    }
+    fn visit_variant(&mut self, variant: &'ast syn::Variant) {
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, &variant.attrs);
+        visit::visit_variant(self, variant);
+        self.condition = previous;
+    }
+    fn visit_foreign_item(&mut self, item: &'ast syn::ForeignItem) {
+        let attrs = match item {
+            syn::ForeignItem::Fn(x) => &x.attrs,
+            syn::ForeignItem::Static(x) => &x.attrs,
+            syn::ForeignItem::Type(x) => &x.attrs,
+            syn::ForeignItem::Macro(x) => &x.attrs,
+            _ => &Vec::new(),
+        };
+        let previous = self.condition.clone();
+        self.condition = with_cfg(&previous, attrs);
+        visit::visit_foreign_item(self, item);
+        self.condition = previous;
     }
     fn visit_macro(&mut self, mac: &'ast syn::Macro) {
         self.visit_path(&mac.path);
@@ -556,6 +751,8 @@ impl<'ast> Visit<'ast> for Imports<'_> {
                     imports: self.imports,
                     tests: self.tests,
                     testing: self.testing,
+                    condition: self.condition.clone(),
+                    conditional_imports: self.conditional_imports,
                     has_tests: self.has_tests,
                 };
                 nested.visit_expr(arg);
@@ -631,6 +828,8 @@ pub fn extract(root: &str) -> Result<pb::CrateResult, String> {
         imports: Names::new(),
         test_imports: Names::new(),
         has_tests: false,
+        conditional_imports: Vec::new(),
+        condition: None,
         active: Names::new(),
         scopes: Vec::new(),
         module_macros: Vec::new(),
@@ -650,6 +849,7 @@ pub fn extract(root: &str) -> Result<pb::CrateResult, String> {
         imports: extractor.imports.into_iter().collect(),
         test_imports: extractor.test_imports.into_iter().collect(),
         has_tests: extractor.has_tests,
+        conditional_imports: extractor.conditional_imports,
     })
 }
 
@@ -681,6 +881,116 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+    #[test]
+    fn cfg_guards_follow_file_inline_and_item_scopes() {
+        let f = Fixture::new(&[
+            (
+                "lib.rs",
+                r#"
+                #[cfg(target_os = "windows")] mod windows;
+                #[cfg(target_os = "macos")] mod inline {
+                    #[cfg(feature = "desktop")] fn run() { platform_api::run(); }
+                }
+                fn run() { #[cfg(target_os = "linux")] linux_api::run(); }
+                use shared::Client;
+                #[cfg(target_os = "windows")] fn other() { shared::run(); }
+            "#,
+            ),
+            (
+                "windows.rs",
+                "#![cfg(not(target_os = \"linux\"))] use win_api::Client;",
+            ),
+        ]);
+        let result = f.extract().unwrap();
+        let imports: Vec<_> = result
+            .conditional_imports
+            .iter()
+            .filter(|i| i.name == "win_api")
+            .collect();
+        assert_eq!(imports.len(), 1);
+        let condition = imports[0].condition.as_ref().unwrap();
+        assert_eq!(condition.op, "all");
+        assert_eq!(condition.args[0].value, "windows");
+        assert_eq!(condition.args[1].op, "not");
+        assert_eq!(condition.args[1].args[0].value, "linux");
+        let platform = result
+            .conditional_imports
+            .iter()
+            .find(|i| i.name == "platform_api")
+            .unwrap();
+        let condition = platform.condition.as_ref().unwrap();
+        assert_eq!(condition.args[0].value, "macos");
+        assert_eq!(condition.args[1].key, "feature");
+        let linux = result
+            .conditional_imports
+            .iter()
+            .find(|i| i.name == "linux_api")
+            .unwrap();
+        assert_eq!(linux.condition.as_ref().unwrap().value, "linux");
+        assert!(result
+            .conditional_imports
+            .iter()
+            .any(|i| i.name == "shared" && i.condition.is_none()));
+        assert!(result
+            .conditional_imports
+            .iter()
+            .any(|i| i.name == "shared" && i.condition.is_some()));
+    }
+    #[test]
+    fn cfg_guards_apply_to_variant_arm_local_and_foreign_paths() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            enum E { #[cfg(target_os = "windows")] Win(variant_api::Type), Other }
+            fn run() {
+                #[cfg(target_os = "windows")] let value = local_api::run();
+                match 1 { #[cfg(target_os = "windows")] 0 => arm_api::run(), _ => () }
+            }
+            #[cfg(target_os = "windows")] extern "C" { fn a(value: foreign_mod_api::Type); }
+            extern "C" { #[cfg(target_os = "windows")] fn b(value: foreign_item_api::Type); }
+        "#,
+        )]);
+        let result = f.extract().unwrap();
+        assert_eq!(
+            result.imports,
+            [
+                "arm_api",
+                "foreign_item_api",
+                "foreign_mod_api",
+                "local_api",
+                "variant_api"
+            ]
+        );
+        for import in result.conditional_imports {
+            let condition = import.condition.unwrap();
+            assert_eq!(condition.key, "target_os", "{}", import.name);
+            assert_eq!(condition.value, "windows", "{}", import.name);
+        }
+    }
+    #[test]
+    fn cfg_attr_is_conservative_without_guarding_ordinary_derives() {
+        let f = Fixture::new(&[(
+            "lib.rs",
+            r#"
+            #[cfg_attr(feature = "extra", derive(Clone))] struct A(plain::Type);
+            #[cfg_attr(feature = "extra", cfg(target_os = "windows"))]
+            fn run() { conditional::run(); }
+        "#,
+        )]);
+        let result = f.extract().unwrap();
+        let plain = result
+            .conditional_imports
+            .iter()
+            .find(|i| i.name == "plain")
+            .unwrap();
+        assert!(plain.condition.is_none());
+        let guarded = result
+            .conditional_imports
+            .iter()
+            .find(|i| i.name == "conditional")
+            .unwrap();
+        assert_eq!(guarded.condition.as_ref().unwrap().key, "cfg_attr");
     }
     #[test]
     fn rejects_invoked_module_macros_instead_of_returning_partial_sources() {

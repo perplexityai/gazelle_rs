@@ -114,7 +114,9 @@ No Cargo build. No per-package manifests. No metadata file required.
 - Visibility: Bazel's package default, private if absent. `rust_visibility`
   overrides the default for new targets.
 - Existing names, roots, editions, visibility, and test settings remain explicit.
-- Keep feature variants and computed dependency expressions in BUILD.
+- OS `cfg(target_os = "...")` imports generate platform selects. Override custom
+  OS labels with inherited `rust_cfg target_os=windows //company/os:windows`.
+- Keep feature variants and opaque computed dependency expressions in BUILD.
 - Use `# keep` when inference cannot see a real dependency, such as generated
   bindings. External dependencies and nested tests do not need keeps by default.
 

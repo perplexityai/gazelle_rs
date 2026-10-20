@@ -1,0 +1,9 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "nonwindows",
+    srcs = ["lib.rs"],
+    crate_name = "nonwindows",
+    crate_root = "lib.rs",
+    edition = "2021",
+)

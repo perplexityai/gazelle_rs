@@ -1,0 +1,2 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+rust_library(name="app",crate_root="lib.rs")

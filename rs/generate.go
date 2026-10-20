@@ -36,8 +36,10 @@ type plan struct {
 	owner                     *rule.Rule
 }
 type importData struct {
-	names    []string
-	preserve bool
+	names      []string
+	preserve   bool
+	conditions map[string][]*pb.Cfg
+	testing    bool
 }
 
 func excludedRoot(cfg *rustConfig, rel, root string) bool {
@@ -278,6 +280,7 @@ func extractPlan(dir string, p plan) (*pb.CrateResult, error) {
 		merged.TestSources = append(merged.TestSources, fact.TestSources...)
 		merged.Imports = append(merged.Imports, fact.Imports...)
 		merged.TestImports = append(merged.TestImports, fact.TestImports...)
+		merged.ConditionalImports = append(merged.ConditionalImports, fact.ConditionalImports...)
 	}
 	return merged, nil
 }
@@ -409,7 +412,7 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		if p.existing != nil && !literalList(p.existing, "srcs") {
 			continue
 		}
-		if p.existing != nil && (!literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps")) {
+		if p.existing != nil && (!editableCfgDeps(p.existing.Attr("deps"), cfg.cfgLabels) || !editableCfgDeps(p.existing.Attr("proc_macro_deps"), cfg.cfgLabels)) {
 			diagnostic(args.Config, "gazelle_rs: %s: %s has computed dependencies; declare a rust_test with crate_root = %q and its dependency expressions", args.Rel, p.name, p.root)
 			continue
 		}
@@ -516,9 +519,15 @@ func (*rustLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		if p.kind == "rust_test" {
 			names = append(names, fact.TestImports...)
 		}
-		preserve := p.existing != nil && (!literalList(p.existing, "deps") || !literalList(p.existing, "proc_macro_deps"))
+		preserve := p.existing != nil && (!editableCfgDeps(p.existing.Attr("deps"), cfg.cfgLabels) || !editableCfgDeps(p.existing.Attr("proc_macro_deps"), cfg.cfgLabels))
+		conditions := map[string][]*pb.Cfg{}
+		for _, imported := range fact.ConditionalImports {
+			if !imported.TestOnly || p.kind == "rust_test" {
+				conditions[imported.Name] = append(conditions[imported.Name], imported.Condition)
+			}
+		}
 		result.Gen = append(result.Gen, r)
-		result.Imports = append(result.Imports, importData{names: names, preserve: preserve})
+		result.Imports = append(result.Imports, importData{names: names, preserve: preserve, conditions: conditions, testing: p.kind == "rust_test"})
 	}
 	return result
 }

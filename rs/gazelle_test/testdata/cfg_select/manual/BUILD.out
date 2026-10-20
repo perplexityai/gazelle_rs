@@ -1,0 +1,10 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "manual",
+    srcs = ["lib.rs"],
+    crate_name = "manual",
+    crate_root = "lib.rs",
+    edition = "2021",
+    deps = project_dependencies(),
+)

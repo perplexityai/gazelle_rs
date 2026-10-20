@@ -1,0 +1,13 @@
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+
+rust_library(
+    name = "app",
+    srcs = ["lib.rs"],
+    crate_name = "app",
+    crate_root = "lib.rs",
+    edition = "2021",
+    deps = ["//common"] + select({
+        "@platforms//os:windows": ["//platform_api"],
+        "//conditions:default": [],
+    }),
+)

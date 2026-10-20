@@ -178,7 +178,7 @@ target is added. Inline tests alone do not create a target.
 
 New unit-test targets copy the owning target's crate name, edition, features,
 compile data, Rust flags, and environment attributes. Subsequent edits to those
-explicit test settings remain user-owned. Libraries with computed dependencies
+explicit test settings remain user-owned. Libraries with opaque computed dependencies
 need an explicit source-based test rule and emit a diagnostic instead of guessing
 its dependency expressions. Procedural macro unit-test targets remain explicit.
 Legacy `rust_test(crate = ...)` rules and libraries supplying their test-only
@@ -210,8 +210,9 @@ Cargo `crate-type` declarations do not currently select these output kinds.
 
 Explicit rules with literal sources and crate roots retain their names and
 crate names. Unrelated attributes survive Gazelle's merge. Computed `srcs`
-remain unmanaged; computed `deps`/`proc_macro_deps` are preserved, including
-custom `select` conditions and helper calls. Gazelle's
+remain unmanaged. Literal OS `select()` dependencies are maintained as described
+below; other computed `deps`/`proc_macro_deps` are preserved, including unknown
+custom conditions and helper calls. Gazelle's
 `# keep` comments remain available for hand-maintained values. Failed parsing,
 missing modules, and source graphs crossing Bazel package boundaries leave the
 affected target unchanged and produce diagnostics.
@@ -337,9 +338,69 @@ provide an explicit versioned override instead of relying on a highest-version
 heuristic. Two different sources with the same package name and version are
 rejected because they would map to the same Bazel label.
 
-The snapshot does not generate external repositories, enable features, or infer
-platform selects. Preserve computed dependencies and validate the resulting
+The snapshot does not generate external repositories or enable features. Source
+`target_os` guards can generate platform selects; other computed dependencies
+remain explicit. Validate the resulting
 configured targets against the existing build before removing Cargo manifests.
+
+## Conditional dependencies
+
+Gazelle generates `deps` and `proc_macro_deps` from Rust OS guards, including in
+fresh BUILD files:
+
+```rust
+#[cfg(target_os = "windows")]
+use windows_api::Client;
+```
+
+```starlark
+deps = select({
+    "@platforms//os:windows": ["//windows_api"],
+    "//conditions:default": [],
+})
+```
+
+Guards on enclosing files, modules, items, and expressions apply to imports
+inside them. `all`, `any`, and `not` compose OS conditions; guards on repeated
+uses are combined. An unconditional use makes that dependency unconditional.
+Bazel's selected branches contain each dependency once. A file reached through
+multiple conditional `#[path]` declarations contributes all of those uses.
+
+Standard Rust `target_os` values map to canonical `@platforms//os` constraints
+(`macos` maps to `osx`, and `nto` to `qnx`). Custom Bazel `platform()` targets
+containing those constraints work without configuration. For custom OS
+constraints or an OS without a built-in mapping, configure an override:
+
+```starlark
+# gazelle:rust_cfg target_os=windows //company/os:windows
+```
+
+The syntax is `rust_cfg target_os=<Rust value> <absolute constraint label>`.
+Mappings inherit into child packages; a child overrides only its own subtree.
+Put repository-wide overrides in the root BUILD. Mapped labels must be mutually
+exclusive OS `constraint_value` targets from the same `constraint_setting`,
+not platform targets or unrelated build flags. Gazelle does not validate that
+constraint graph. An unmapped OS is a diagnostic (an error with `-strict`) and
+leaves the existing dependency attributes unchanged.
+
+Gazelle maintains literal lists, a literal `select()` dictionary using mapped OS
+labels, and one list plus one such select. Comments and `# keep` entries in
+retained branches survive regeneration. Unknown select keys, default-only
+selects, multiple selects, arbitrary concatenations, and helper calls stay
+manually maintained; use `rust_cfg` to identify custom OS keys. Gazelle does not
+inspect arbitrary `config_setting` definitions or preserve obsolete unkept
+branch membership when source guards change.
+
+This version models OS conditions and the test harness, not Rust features,
+`target_arch`, shorthand `cfg(windows)`/`cfg(unix)`, or arbitrary custom cfgs.
+Unsupported predicates are possibly true, including under `not`, so dependencies
+are retained conservatively within any known OS restriction. Existing
+feature-only guards retain their previous unconditional-dependency behavior.
+A nonfatal message reports unsupported predicates mixed with OS guards; it does
+not turn normal feature-gated crates into strict-generation errors.
+`cfg_attr(..., cfg(...))` is not expanded and also reports conservative fallback;
+ordinary `cfg_attr(..., derive(...))` does not guard its enclosing item. Macro
+expansion and Cargo feature activation remain outside inference.
 
 ## Strict diagnostics
 
@@ -407,10 +468,11 @@ failure. It contains no Cargo manifests and runs in the example CI matrix.
 ## Scope
 
 This is source-level dependency inference, not Cargo or rustc execution. It does
-not expand macros, execute build scripts, discover `include!` inputs, evaluate
-feature/platform `cfg` expressions, or translate Cargo dependency tables into
-external repositories. Feature/platform branches are inspected conservatively;
-all declared module files must exist. A `cfg` expression is test-only when it
+not expand macros, execute build scripts, discover `include!` inputs, activate
+Rust features, or translate Cargo dependency tables into external repositories.
+OS guards generate conditional dependencies as described above; other cfg
+predicates are inspected conservatively.
+All declared module files must exist. A `cfg` expression is test-only when it
 is guaranteed false without `test`; unknown feature/platform predicates stay
 conservative (for example, `cfg(any(test, feature = "extra"))` is production-capable).
 Macro-generated imports and unusual lexical shadowing may need

@@ -1,7 +1,10 @@
 package rs
 
 import (
+	pb "github.com/perplexityai/gazelle_rs/rs/proto"
+	"log"
 	"sort"
+	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/label"
@@ -31,7 +34,7 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 	if !ok || data.preserve {
 		return
 	}
-	deps, macros := map[string]bool{}, map[string]bool{}
+	deps, macros := map[string][]*pb.Cfg{}, map[string][]*pb.Cfg{}
 	unresolved := false
 	cargo := getConfig(c).cargo
 	aliases, editableAliases := crateAliases(r)
@@ -70,7 +73,7 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 				candidates := cargo.candidates(from.Pkg, name)
 				if len(candidates) > 1 {
 					var selected []externalCrate
-					for _, value := range append(r.AttrStrings("deps"), r.AttrStrings("proc_macro_deps")...) {
+					for _, value := range dependencyLabels(r) {
 						parsed, err := label.Parse(value)
 						if err != nil {
 							continue
@@ -102,7 +105,7 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 			}
 			if len(hits) > 1 {
 				selected := -1
-				existing := append(r.AttrStrings("deps"), r.AttrStrings("proc_macro_deps")...)
+				existing := dependencyLabels(r)
 				if crate := r.AttrString("crate"); crate != "" {
 					existing = append(existing, crate)
 				}
@@ -177,28 +180,45 @@ func (*rustLang) Resolve(c *config.Config, ix *resolve.RuleIndex, _ *repo.Remote
 			}
 		}
 		if isMacro || getConfig(c).procMacros[name] {
-			macros[value] = true
+			macros[value] = append(macros[value], importConditions(data, name)...)
 		} else {
-			deps[value] = true
+			deps[value] = append(deps[value], importConditions(data, name)...)
 		}
 	}
 	// Keep existing dependency expressions intact if extraction cannot resolve every import.
 	if unresolved {
 		return
 	}
+	keeps := map[string]map[string]bool{
+		"deps":            keepCfgDeps(deps, r.Attr("deps"), getConfig(c).cfgLabels),
+		"proc_macro_deps": keepCfgDeps(macros, r.Attr("proc_macro_deps"), getConfig(c).cfgLabels),
+	}
+	unsupported := map[string]bool{}
+	expressions := map[string]build.Expr{}
+	for attr, values := range map[string]map[string][]*pb.Cfg{"deps": deps, "proc_macro_deps": macros} {
+		expr, err := conditionalDeps(values, getConfig(c).cfgLabels, data.testing, unsupported, keeps[attr])
+		if err != nil {
+			diagnostic(c, "gazelle_rs: %s: %v (leaving dependencies unchanged)", from.String(), err)
+			return
+		}
+		expressions[attr] = expr
+	}
+	if len(unsupported) > 0 && (hasOSConditions(data.conditions) || unsupported["cfg_attr"]) {
+		var predicates []string
+		for name := range unsupported {
+			predicates = append(predicates, name)
+		}
+		sort.Strings(predicates)
+		log.Printf("gazelle_rs: %s: unsupported cfg predicates (%s); retaining dependencies conservatively within known OS guards", from.String(), strings.Join(predicates, ", "))
+	}
 	if aliasesChanged {
 		r.SetAttr("aliases", aliasValue{rule.ExprFromValue(aliases)})
 	}
-	for attr, values := range map[string]map[string]bool{"deps": deps, "proc_macro_deps": macros} {
-		var list []string
-		for value := range values {
-			list = append(list, value)
-		}
-		sort.Strings(list)
-		if len(list) > 0 {
-			r.SetAttr(attr, list)
-		} else {
+	for attr, expr := range expressions {
+		if expr == nil {
 			r.DelAttr(attr)
+		} else {
+			r.SetAttr(attr, cfgDependencyValue{expr})
 		}
 	}
 }
@@ -257,4 +277,11 @@ func (v aliasValue) Merge(other build.Expr) build.Expr {
 		}
 	}
 	return &merged
+}
+
+func importConditions(data importData, name string) []*pb.Cfg {
+	if conditions := data.conditions[name]; len(conditions) > 0 {
+		return conditions
+	}
+	return []*pb.Cfg{nil}
 }

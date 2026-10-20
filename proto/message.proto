@@ -11,4 +11,18 @@ message CrateResult {
   repeated string test_imports = 3;
   bool has_tests = 4;
   repeated string test_sources = 5;
+  repeated ConditionalImport conditional_imports = 6;
+}
+
+// Conditions retain source structure so consumers can add predicate mappings.
+message Cfg {
+  string op = 1;
+  string key = 2;
+  string value = 3;
+  repeated Cfg args = 4;
+}
+message ConditionalImport {
+  string name = 1;
+  Cfg condition = 2;
+  bool test_only = 3;
 }

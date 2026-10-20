@@ -1,0 +1,1 @@
+# gazelle:rust_cfg target_os=windows //custom/os:windows
