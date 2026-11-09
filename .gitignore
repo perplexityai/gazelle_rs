@@ -4,4 +4,4 @@ bazel-*
 node_modules/
 
 # Buildkite test reports and temporary consumers.
-.buildkite-artifacts/
+.ci-artifacts/
