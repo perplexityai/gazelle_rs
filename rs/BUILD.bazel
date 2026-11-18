@@ -60,6 +60,7 @@ go_test(
         "//conditions:default": [],
     }),
     embed = [":rs"],
+    visibility = ["//.github/ci:__pkg__"],
     deps = [
         "@gazelle//config",
         "@gazelle//label",

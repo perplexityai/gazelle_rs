@@ -58,6 +58,12 @@ done
 [[ $# -gt 0 ]] || exec "$CI_CACHE_DIR/bin/bazelisk-real" ${startup[@]+"${startup[@]}"}
 command=$1
 shift
+remote=()
+if [[ -n "${BB_RW_KEY:-}" ]]; then
+  startup+=("--bazelrc=$GITHUB_WORKSPACE/.github/ci/buildbuddy.bazelrc")
+  remote=(--config=ci "--remote_header=x-buildbuddy-api-key=$BB_RW_KEY"
+    "--build_metadata=COMMIT_SHA=$GITHUB_SHA" "--build_metadata=CI_RUN_ID=$CI_RUN_ID")
+fi
 case "$command" in
   build|test|run|coverage|fetch)
     contents_cache=()
@@ -67,7 +73,7 @@ case "$command" in
     fi
     exec "$CI_CACHE_DIR/bin/bazelisk-real" ${startup[@]+"${startup[@]}"} "$command" \
       --repository_cache="$CI_CACHE_DIR/repository" \
-      --disk_cache="$CI_CACHE_DIR/disk/$USE_BAZEL_VERSION" ${contents_cache[@]+"${contents_cache[@]}"} "$@"
+      ${remote[@]+"${remote[@]}"} ${contents_cache[@]+"${contents_cache[@]}"} "$@"
     ;;
   *) exec "$CI_CACHE_DIR/bin/bazelisk-real" ${startup[@]+"${startup[@]}"} "$command" "$@" ;;
 esac
