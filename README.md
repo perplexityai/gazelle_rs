@@ -385,13 +385,11 @@ Go tests run through Bazel so the native library and generated Go bindings are s
 
 ### GitHub Actions
 
-| Workflow              | Trigger and purpose                                                                                                                                                                        |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ci.yaml`             | PRs, merge queue, and pushes to main: Linux Bazel tests, all runnable examples and generation diffs, and Darwin/Windows target analysis. Non-PR events also run a native macOS smoke test. |
-| `verify-hooks.yml`    | PRs, merge queue, and main: install pinned pnpm/lefthook tooling; PRs validate the title and commits using the same Conventional Commit rules as gazelle_py.                               |
-| `release-smoke.yml`   | PRs, merge queue, and main: create a disposable local tag, build a source archive, and verify its contents, SRI, version marker, and BCR source template without publishing.               |
-| `release-please.yml`  | Main pushes or manual dispatch: maintain the release PR, changelog, `version.txt`, and `MODULE.bazel`; create the release tag.                                                             |
-| `module_release.yaml` | Version tags or manual dispatch of an existing tag: publish the source archive using bazel-contrib's reusable workflow, then submit to BCR.                                                |
+| Workflow              | Trigger and purpose                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`              | PRs, merge queue, and main: Bazel tests, examples, commit checks, release packaging, cross-builds, and artifact smoke tests.                |
+| `release-please.yml`  | Main pushes or manual dispatch: maintain the release PR, changelog, `version.txt`, and `MODULE.bazel`; create the release tag.              |
+| `module_release.yaml` | Version tags or manual dispatch of an existing tag: publish the source archive using bazel-contrib's reusable workflow, then submit to BCR. |
 
 Release/manual workflows must be merged onto the default branch before they appear as dispatchable workflows in GitHub Actions.
 To run the local checks:
