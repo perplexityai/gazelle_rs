@@ -4,7 +4,7 @@ use std::slice;
 ///
 /// # Safety
 /// Both pointers reference the specified number of readable bytes.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gazelle_rs_cargo_version_matches(
     requirement: *const u8,
     requirement_len: usize,
@@ -30,7 +30,7 @@ pub unsafe extern "C" fn gazelle_rs_cargo_version_matches(
 /// # Safety
 /// Input points to `len` readable bytes (or is null when len is zero).
 /// Both output pointers are writable. Free the returned allocation exactly once.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gazelle_rs_ie_dispatch(
     input: *const u8,
     len: usize,
@@ -51,28 +51,13 @@ pub unsafe extern "C" fn gazelle_rs_ie_dispatch(
 
 /// # Safety
 /// The pointer and length must be an allocation returned by dispatch, not yet freed.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gazelle_rs_ie_free(ptr: *mut u8, len: usize) {
     if !ptr.is_null() {
-        unsafe { drop(Box::from_raw(slice::from_raw_parts_mut(ptr, len))) };
+        unsafe { drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len))) };
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use prost::Message;
-    #[test]
-    fn malformed_request_returns_owned_error_response() {
-        let input = [0xff];
-        let mut output = std::ptr::null_mut();
-        let mut len = 0;
-        unsafe {
-            gazelle_rs_ie_dispatch(input.as_ptr(), input.len(), &mut output, &mut len);
-            let response = crate::pb::Response::decode(slice::from_raw_parts(output, len)).unwrap();
-            assert!(!response.error.is_empty());
-            gazelle_rs_ie_free(output, len);
-            gazelle_rs_ie_free(std::ptr::null_mut(), 0);
-        }
-    }
-}
+#[path = "ffi.test.rs"]
+mod tests;

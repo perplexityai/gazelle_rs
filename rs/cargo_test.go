@@ -13,9 +13,9 @@ import (
 )
 
 func TestCargoResolution(t *testing.T) {
-	regular := externalCrate{label: label.New("crates", "", "serde-1.0.0"), name: "serde"}
-	newer := externalCrate{label: label.New("crates", "", "serde-2.0.0"), name: "serde"}
-	macro := externalCrate{label: label.New("crates", "", "derive-1.0.0"), name: "derive", macro: true}
+	regular := externalCrate{label: label.New("fixture_crates", "", "serde-1.0.0"), name: "serde"}
+	newer := externalCrate{label: label.New("fixture_crates", "", "serde-2.0.0"), name: "serde"}
+	macro := externalCrate{label: label.New("fixture_crates", "", "derive-1.0.0"), name: "derive", macro: true}
 	index := &cargoIndex{
 		crates:   map[string][]externalCrate{"serde": {regular, newer}, "derive": {macro}},
 		packages: map[string]map[string][]externalCrate{"scoped": {"serde": {regular}, "renamed": {regular}}},
@@ -27,13 +27,13 @@ func TestCargoResolution(t *testing.T) {
 		wantAlias                                          bool
 	}{
 		{name: "ambiguous_preserves_all", imported: "serde", wantDeps: []string{"//old:dep"}, wantMacros: []string{"//old:macro"}},
-		{name: "selected_version", pkg: "scoped", imported: "serde", wantDeps: []string{"@crates//:serde-1.0.0"}},
-		{name: "proc_macro", imported: "derive", wantMacros: []string{"@crates//:derive-1.0.0"}},
-		{name: "override_classifies_macro", imported: "derive", override: "@crates//:derive-1.0.0", wantMacros: []string{"@crates//:derive-1.0.0"}},
+		{name: "selected_version", pkg: "scoped", imported: "serde", wantDeps: []string{"@fixture_crates//:serde-1.0.0"}},
+		{name: "proc_macro", imported: "derive", wantMacros: []string{"@fixture_crates//:derive-1.0.0"}},
+		{name: "override_classifies_macro", imported: "derive", override: "@fixture_crates//:derive-1.0.0", wantMacros: []string{"@fixture_crates//:derive-1.0.0"}},
 		{name: "override_wins", imported: "serde", override: "//chosen:serde", wantDeps: []string{"//chosen:serde"}},
 		{name: "internal_wins", imported: "serde", internal: "serde", wantDeps: []string{"//internal:serde"}},
-		{name: "alias", pkg: "scoped", imported: "renamed", wantDeps: []string{"@crates//:serde-1.0.0"}, wantAlias: true},
-		{name: "conflicting_alias_preserved", pkg: "scoped", imported: "serde", aliasExpr: `{"@crates//:serde-1.0.0": "wrong"}`, wantDeps: []string{"//old:dep"}, wantMacros: []string{"//old:macro"}},
+		{name: "alias", pkg: "scoped", imported: "renamed", wantDeps: []string{"@fixture_crates//:serde-1.0.0"}, wantAlias: true},
+		{name: "conflicting_alias_preserved", pkg: "scoped", imported: "serde", aliasExpr: `{"@fixture_crates//:serde-1.0.0": "wrong"}`, wantDeps: []string{"//old:dep"}, wantMacros: []string{"//old:macro"}},
 		{name: "computed_aliases_preserved", pkg: "scoped", imported: "renamed", aliasExpr: "ALIASES", wantDeps: []string{"//old:dep"}, wantMacros: []string{"//old:macro"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestCargoResolution(t *testing.T) {
 			}
 			if tc.wantAlias {
 				aliases, _ := crateAliases(r)
-				if aliases["@crates//:serde-1.0.0"] != "renamed" {
+				if aliases["@fixture_crates//:serde-1.0.0"] != "renamed" {
 					t.Fatalf("aliases = %v", aliases)
 				}
 			}

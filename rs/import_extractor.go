@@ -1,6 +1,7 @@
 package rs
 
 /*
+#cgo linux LDFLAGS: -ldl -Wl,--whole-archive -lunwind -Wl,--no-whole-archive
 #include <stddef.h>
 #include <stdint.h>
 void gazelle_rs_ie_dispatch(const uint8_t *, size_t, uint8_t **, size_t *);

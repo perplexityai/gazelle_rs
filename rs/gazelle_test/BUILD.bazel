@@ -1,12 +1,18 @@
-load("//rs:gazelle_tests.bzl", "gazelle_tests")
+load("@gazelle//:def.bzl", "gazelle_binary")
+load("@rules_go//go:def.bzl", "go_test")
 
-# Fixture-style integration tests for the gazelle_rs language extension.
-# Each subdirectory of testdata/ is one fixture; see ./testdata/README.md
-# for the contract.
-gazelle_tests(
-    name = "gazelle_test",
+gazelle_binary(
+    name = "gazelle_test_gazelle_bin",
+    testonly = True,
+    languages = ["//rs"],
+)
+
+go_test(
+    name = "gazelle_test_test",
+    size = "medium",
     srcs = ["gazelle_test.go"],
-    testdata = glob(["testdata/**"]),
+    args = ["-gazelle_binary=$(rlocationpath :gazelle_test_gazelle_bin)"],
+    data = [":gazelle_test_gazelle_bin"] + glob(["testdata/**"]),
     deps = [
         "@gazelle//testtools",
         "@rules_go//go/runfiles",

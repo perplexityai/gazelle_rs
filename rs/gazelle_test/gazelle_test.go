@@ -31,12 +31,12 @@ import (
 var gazelleBinaryPath = flag.String(
 	"gazelle_binary",
 	"",
-	"rlocationpath of the gazelle_binary under test (passed in by the gazelle_tests macro).",
+	"rlocationpath of the gazelle_binary under test (passed in by the BUILD target).",
 )
 
 // testdataRelative is where fixtures live relative to the workspace root. Used
 // only for the UPDATE_SNAPSHOTS hint testtools prints on failure.
-const testdataRelative = "rs/gazelle_test/testdata"
+var testdataRelative = path.Join(strings.TrimPrefix(strings.SplitN(os.Getenv("TEST_TARGET"), ":", 2)[0], "//"), "testdata")
 
 func currentRepoRunfile(relativePath string) (string, error) {
 	repo := runfiles.CurrentRepository()
@@ -49,7 +49,7 @@ func currentRepoRunfile(relativePath string) (string, error) {
 
 func TestFixtures(t *testing.T) {
 	if *gazelleBinaryPath == "" {
-		t.Fatal("-gazelle_binary flag is required (set by the gazelle_tests macro)")
+		t.Fatal("-gazelle_binary flag is required (set by the BUILD target)")
 	}
 	gazelleBin, err := runfiles.Rlocation(*gazelleBinaryPath)
 	if err != nil {
