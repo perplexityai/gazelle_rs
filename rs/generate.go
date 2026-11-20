@@ -72,7 +72,7 @@ func literalList(r *rule.Rule, attr string) bool {
 // Computed dependencies are user-owned. Gazelle's default list merger only
 // recognizes a subset of select keys and cannot merge arbitrary calls.
 type preservedDependency struct{ expr build.Expr }
-
+// random comments
 func (v preservedDependency) BzlExpr() build.Expr { return v.expr }
 func (v preservedDependency) Merge(other build.Expr) build.Expr {
 	if other != nil {
