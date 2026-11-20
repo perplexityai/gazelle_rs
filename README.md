@@ -1,5 +1,7 @@
 # gazelle_rs
 
+test
+
 These instructions describe the [standalone public repository](https://github.com/perplexityai/gazelle_rs).
 Relative paths, toolchain setup, and `@gazelle_rs` labels below refer to that repository.
 
