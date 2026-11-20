@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source .github/ci/setup.sh
-bazel_command=bazelisk
+: "${BB_RO_KEY:?Public CAS-write/AC-read-only BuildBuddy key is required}"
 python3 -B .github/ci/artifacts_test.py
-root=$PWD
+python3 -B .github/ci/buildbuddy_artifacts_test.py
+directory="$PWD/.ci-artifacts/invocations/$USE_BAZEL_VERSION"
+mkdir -p "$directory"
 for platform in linux-amd64 darwin-arm64 windows-amd64; do
   case "$platform" in
     linux-amd64) target_platform=@rules_rs//rs/platforms:x86_64-unknown-linux-gnu ;;
@@ -11,16 +13,10 @@ for platform in linux-amd64 darwin-arm64 windows-amd64; do
     windows-amd64) target_platform=@rules_rs//rs/platforms:x86_64-pc-windows-gnullvm ;;
   esac
   echo "--- Build $platform binaries"
-  "$bazel_command" build --use_target_platform_for_tests "--platforms=$target_platform" //.github/ci:gazelle //rs:rs_test
-  directory="$root/.ci-artifacts/smoke/$USE_BAZEL_VERSION/$platform"
-  mkdir -p "$directory"
-  for item in 'gazelle //.github/ci:gazelle' 'unit-test //rs:rs_test'; do
-    read -r name target <<< "$item"
-    binary=$("$bazel_command" cquery --use_target_platform_for_tests "--platforms=$target_platform" "$target" --output=starlark \
-      '--starlark:expr=providers(target)["DefaultInfo"].files_to_run.executable.path')
-    suffix=
-    [[ "$platform" != windows-amd64 ]] || suffix=.exe
-    cp -L "$binary" "$directory/$name$suffix"
-  done
-  python3 .github/ci/artifacts.py pack "$directory" "$platform"
+  invocation=$(python3 -c 'import uuid; print(uuid.uuid4())')
+  events="$RUNNER_TEMP/smoke-$platform.bep.json"
+  bazelisk build --use_target_platform_for_tests "--platforms=$target_platform" \
+    "--invocation_id=$invocation" "--build_event_json_file=$events" \
+    --remote_download_outputs=minimal //.github/ci:smoke_archive
+  python3 .github/ci/buildbuddy_artifacts.py record "$directory" "$platform" "$invocation" "$events"
 done

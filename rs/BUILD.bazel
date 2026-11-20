@@ -51,6 +51,7 @@ go_test(
         "mappings_test.go",
     ],
     embed = [":rs"],
+    visibility = ["//.github/ci:__pkg__"],
     deps = [
         "@gazelle//config",
         "@gazelle//label",

@@ -14,6 +14,10 @@ name: ci
         type: string
         required: false
         default: ''
+    secrets:
+      BB_RW_KEY:
+        description: Post-merge BuildBuddy writer key
+        required: false
 permissions:
   actions: read
   contents: read
@@ -21,15 +25,18 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: "${{ github.event_name == 'pull_request' }}"
 env:
+  BB_RO_KEY: ${{ vars.BB_RO_KEY }}
   CI_RUN_ID: "${{ github.run_id }}-${{ github.run_attempt }}"
   CI_RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{
     github.run_id }}"
 jobs:
   test-oss-9-0-0:
     name: bazel 9.0.0 test (linux-x86_64)
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -48,9 +55,11 @@ jobs:
       shell: bash
   examples-oss-9-0-0:
     name: examples / bazel 9.0.0
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -69,9 +78,11 @@ jobs:
       shell: bash
   test-oss-8-6-0:
     name: bazel 8.6.0 test (linux-x86_64)
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -90,9 +101,11 @@ jobs:
       shell: bash
   examples-oss-8-6-0:
     name: examples / bazel 8.6.0
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -111,7 +124,7 @@ jobs:
       shell: bash
   release-smoke-oss:
     name: Release packaging smoke
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -131,7 +144,7 @@ jobs:
       CI_CACHE_DIR: "/tmp/oss-ci"
   verify-hooks:
     name: Verify hooks
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -147,15 +160,18 @@ jobs:
     - name: Run checks
       run: |-
         python3 -B .github/scripts/test-gha-release-gate.py
+        python3 -B .github/ci/bazel_test.py
         bash .github/ci/verify-hooks.sh
       shell: bash
     env:
       CI_CACHE_DIR: "/tmp/oss-ci"
   smoke-build-9-0-0:
     name: Cross-build smoke binaries / Bazel 9.0.0
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -174,18 +190,18 @@ jobs:
       shell: bash
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
-        name: smoke-9.0.0
-        path: ".ci-artifacts/smoke/9.0.0"
+        name: smoke-invocations-9.0.0
+        path: ".ci-artifacts/invocations/9.0.0"
         if-no-files-found: error
         include-hidden-files: true
   artifact-smoke-oss-9-0-0:
     name: Artifact smoke / Linux AMD64 / Bazel 9.0.0
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
-    needs: smoke-build-9-0-0
+    needs: smoke-download-9-0-0
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
@@ -205,7 +221,7 @@ jobs:
     env:
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
-    needs: smoke-build-9-0-0
+    needs: smoke-download-9-0-0
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
@@ -220,9 +236,11 @@ jobs:
       shell: bash
   smoke-build-8-6-0:
     name: Cross-build smoke binaries / Bazel 8.6.0
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -241,18 +259,18 @@ jobs:
       shell: bash
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
-        name: smoke-8.6.0
-        path: ".ci-artifacts/smoke/8.6.0"
+        name: smoke-invocations-8.6.0
+        path: ".ci-artifacts/invocations/8.6.0"
         if-no-files-found: error
         include-hidden-files: true
   artifact-smoke-oss-8-6-0:
     name: Artifact smoke / Linux AMD64 / Bazel 8.6.0
-    runs-on: ubuntu-24.04-16core
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
-    needs: smoke-build-8-6-0
+    needs: smoke-download-8-6-0
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
@@ -272,7 +290,7 @@ jobs:
     env:
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
-    needs: smoke-build-8-6-0
+    needs: smoke-download-8-6-0
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
@@ -292,7 +310,7 @@ jobs:
     env:
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
-    needs: smoke-build-9-0-0
+    needs: smoke-download-9-0-0
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
@@ -312,7 +330,7 @@ jobs:
     env:
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
-    needs: smoke-build-8-6-0
+    needs: smoke-download-8-6-0
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
@@ -325,10 +343,56 @@ jobs:
     - name: Run checks
       run: pwsh -NoProfile -File .github/ci/smoke-windows.ps1
       shell: pwsh
+  smoke-download-9-0-0:
+    name: Download BuildBuddy artifacts / Bazel 9.0.0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: smoke-build-9-0-0
+    env:
+      USE_BAZEL_VERSION: 9.0.0
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: smoke-invocations-9.0.0
+        path: .ci-artifacts/invocations
+    - name: Fetch cross-built binaries from BuildBuddy
+      run: python3 .github/ci/buildbuddy_artifacts.py download .ci-artifacts/invocations
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: smoke-9.0.0
+        path: .ci-artifacts/smoke/9.0.0
+        if-no-files-found: error
+  smoke-download-8-6-0:
+    name: Download BuildBuddy artifacts / Bazel 8.6.0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: smoke-build-8-6-0
+    env:
+      USE_BAZEL_VERSION: 8.6.0
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: smoke-invocations-8.6.0
+        path: .ci-artifacts/invocations
+    - name: Fetch cross-built binaries from BuildBuddy
+      run: python3 .github/ci/buildbuddy_artifacts.py download .ci-artifacts/invocations
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: smoke-8.6.0
+        path: .ci-artifacts/smoke/8.6.0
+        if-no-files-found: error
   ci:
     name: CI
     if: "${{ always() }}"
     needs:
+    - smoke-download-9-0-0
+    - smoke-download-8-6-0
     - test-oss-9-0-0
     - examples-oss-9-0-0
     - test-oss-8-6-0
