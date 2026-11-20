@@ -47,37 +47,7 @@ download_verified() {
 download_verified "https://github.com/bazelbuild/bazelisk/releases/download/v1.29.0/bazelisk-$platform" \
   "$CI_CACHE_DIR/bin/bazelisk-real" "$bazelisk_sha"
 chmod +x "$CI_CACHE_DIR/bin/bazelisk-real"
-cat > "$CI_CACHE_DIR/bin/bazelisk" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-startup=()
-while [[ $# -gt 0 && "$1" == -* ]]; do
-  startup+=("$1")
-  shift
-done
-[[ $# -gt 0 ]] || exec "$CI_CACHE_DIR/bin/bazelisk-real" ${startup[@]+"${startup[@]}"}
-command=$1
-shift
-remote=()
-if [[ -n "${BB_RW_KEY:-}" ]]; then
-  startup+=("--bazelrc=$GITHUB_WORKSPACE/.github/ci/buildbuddy.bazelrc")
-  remote=(--config=ci "--remote_header=x-buildbuddy-api-key=$BB_RW_KEY"
-    "--build_metadata=COMMIT_SHA=$GITHUB_SHA" "--build_metadata=CI_RUN_ID=$CI_RUN_ID")
-fi
-case "$command" in
-  build|test|run|coverage|fetch)
-    contents_cache=()
-    # Bazel 9 repository contents can retain LLVM symlinks into old agents.
-    if [[ "${USE_BAZEL_VERSION%%.*}" -ge 9 ]]; then
-      contents_cache=(--repo_contents_cache=)
-    fi
-    exec "$CI_CACHE_DIR/bin/bazelisk-real" ${startup[@]+"${startup[@]}"} "$command" \
-      --repository_cache="$CI_CACHE_DIR/repository" \
-      ${remote[@]+"${remote[@]}"} ${contents_cache[@]+"${contents_cache[@]}"} "$@"
-    ;;
-  *) exec "$CI_CACHE_DIR/bin/bazelisk-real" ${startup[@]+"${startup[@]}"} "$command" "$@" ;;
-esac
-SH
+cp .github/ci/bazel.sh "$CI_CACHE_DIR/bin/bazelisk"
 chmod +x "$CI_CACHE_DIR/bin/bazelisk"
 ln -sf bazelisk "$CI_CACHE_DIR/bin/bazel"
 export PATH="$CI_CACHE_DIR/bin:$PATH"

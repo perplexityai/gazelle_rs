@@ -92,9 +92,9 @@ def extract_archive(content, uri, directory, platform):
 
 
 def api_request(method, body):
-    key = os.environ["BB_RW_KEY"]
+    key = os.environ.get("BB_RO_KEY", "")
     if not key:
-        raise ValueError("BuildBuddy credentials are required")
+        raise ValueError("Public BuildBuddy key BB_RO_KEY is required")
     request = urllib.request.Request(
         API_URL + method, data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", "x-buildbuddy-api-key": key},

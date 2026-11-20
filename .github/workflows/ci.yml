@@ -16,8 +16,8 @@ name: ci
         default: ''
     secrets:
       BB_RW_KEY:
-        description: BuildBuddy read/write API key
-        required: true
+        description: Post-merge BuildBuddy writer key
+        required: false
 permissions:
   actions: read
   contents: read
@@ -25,6 +25,7 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: "${{ github.event_name == 'pull_request' }}"
 env:
+  BB_RO_KEY: ${{ vars.BB_RO_KEY }}
   CI_RUN_ID: "${{ github.run_id }}-${{ github.run_attempt }}"
   CI_RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{
     github.run_id }}"
@@ -32,9 +33,10 @@ jobs:
   test-oss-9-0-0:
     name: bazel 9.0.0 test (linux-x86_64)
     runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -54,9 +56,10 @@ jobs:
   examples-oss-9-0-0:
     name: examples / bazel 9.0.0
     runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -76,9 +79,10 @@ jobs:
   test-oss-8-6-0:
     name: bazel 8.6.0 test (linux-x86_64)
     runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -98,9 +102,10 @@ jobs:
   examples-oss-8-6-0:
     name: examples / bazel 8.6.0
     runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -155,6 +160,7 @@ jobs:
     - name: Run checks
       run: |-
         python3 -B .github/scripts/test-gha-release-gate.py
+        python3 -B .github/ci/bazel_test.py
         bash .github/ci/verify-hooks.sh
       shell: bash
     env:
@@ -162,9 +168,10 @@ jobs:
   smoke-build-9-0-0:
     name: Cross-build smoke binaries / Bazel 9.0.0
     runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 9.0.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -230,9 +237,10 @@ jobs:
   smoke-build-8-6-0:
     name: Cross-build smoke binaries / Bazel 8.6.0
     runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && 'ci' || '' }}
     timeout-minutes: 60
     env:
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
+      BB_RW_KEY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (inputs.ref == '' || inputs.ref == github.sha) && secrets.BB_RW_KEY || '' }}
       USE_BAZEL_VERSION: 8.6.0
       CI_CACHE_DIR: "/tmp/oss-ci"
     steps:
@@ -342,7 +350,6 @@ jobs:
     needs: smoke-build-9-0-0
     env:
       USE_BAZEL_VERSION: 9.0.0
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
@@ -365,7 +372,6 @@ jobs:
     needs: smoke-build-8-6-0
     env:
       USE_BAZEL_VERSION: 8.6.0
-      BB_RW_KEY: ${{ secrets.BB_RW_KEY }}
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:

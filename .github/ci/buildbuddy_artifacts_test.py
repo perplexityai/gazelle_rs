@@ -71,6 +71,25 @@ class BuildBuddyArtifactTests(unittest.TestCase):
                 buildbuddy.download(self.root)
             request.assert_not_called()
 
+    def test_download_api_uses_public_key_even_when_writer_is_present(self):
+        def respond(request, timeout):
+            self.assertEqual(request.full_url, buildbuddy.API_URL + "GetFile")
+            self.assertEqual(request.get_header("X-buildbuddy-api-key"), "public-cas-key")
+            self.assertEqual(json.loads(request.data), {"uri": "artifact"})
+            self.assertEqual(timeout, 120)
+            return "download"
+
+        with patch.dict(os.environ, {"BB_RO_KEY": "public-cas-key", "BB_RW_KEY": "private-writer-key"}):
+            with patch.object(buildbuddy.urllib.request, "urlopen", side_effect=respond):
+                self.assertEqual(buildbuddy.api_request("GetFile", {"uri": "artifact"}), "download")
+
+    def test_download_api_never_falls_back_to_writer(self):
+        with patch.dict(os.environ, {"BB_RO_KEY": "", "BB_RW_KEY": "private-writer-key"}):
+            with patch.object(buildbuddy.urllib.request, "urlopen") as request:
+                with self.assertRaisesRegex(ValueError, "BB_RO_KEY"):
+                    buildbuddy.api_request("GetFile", {"uri": "artifact"})
+                request.assert_not_called()
+
     def test_reject_unsafe_or_incomplete_archive_before_writing(self):
         for names, link in [(["../gazelle"], False), (["/gazelle"], False),
                             (["gazelle", "gazelle"], False), (["gazelle"], True),

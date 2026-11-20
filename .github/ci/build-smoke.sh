@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source .github/ci/setup.sh
-: "${BB_RW_KEY:?BuildBuddy credentials are required for cross-builds}"
+: "${BB_RO_KEY:?Public CAS-write/AC-read-only BuildBuddy key is required}"
 python3 -B .github/ci/artifacts_test.py
 python3 -B .github/ci/buildbuddy_artifacts_test.py
 directory="$PWD/.ci-artifacts/invocations/$USE_BAZEL_VERSION"
