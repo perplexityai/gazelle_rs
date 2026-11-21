@@ -96,6 +96,7 @@ build:linux --linkopt=-no-pie
 ```
 
 Then run `bazel run //:gazelle`.
+Rerun Gazelle after editing Rust sources, before running tests.
 Use `bazel run //:gazelle -- -mode=diff` to check that generated BUILD files are current.
 Keep Gazelle's default full index (or use `-index=all` when updating a subset) for cross-package resolution.
 
