@@ -2,6 +2,8 @@ bazel-*
 /target/
 .bazelrc.user
 node_modules/
+bazel-remote-grpc.log
+execution_log.binpb.zst
 
 # Buildkite test reports and temporary consumers.
 .ci-artifacts/
