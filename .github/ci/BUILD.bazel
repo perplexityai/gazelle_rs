@@ -4,3 +4,19 @@ gazelle_binary(
     name = "gazelle",
     languages = ["//rs"],
 )
+
+# Archive on the Linux executor, including for Darwin and Windows targets.
+genrule(
+    name = "smoke_archive",
+    testonly = True,
+    srcs = [
+        ":gazelle",
+        "//rs:rs_test",
+    ],
+    outs = ["smoke.tar.gz"],
+    cmd = "mkdir -p $(@D)/smoke && " + select({
+        "@platforms//os:windows": "cp $(location :gazelle) $(@D)/smoke/gazelle.exe && cp $(location //rs:rs_test) $(@D)/smoke/unit-test.exe && ",
+        "//conditions:default": "cp $(location :gazelle) $(@D)/smoke/gazelle && cp $(location //rs:rs_test) $(@D)/smoke/unit-test && ",
+    }) + "tar -czf $@ -C $(@D)/smoke .",
+    tags = ["manual"],
+)
