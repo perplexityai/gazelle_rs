@@ -98,6 +98,7 @@ build:linux --linkopt=-no-pie
 Then run `bazel run //:gazelle`.
 Use `bazel run //:gazelle -- -mode=diff` to check that generated BUILD files are current.
 Review generated BUILD changes before committing them.
+Run `bazel test //...` after updating BUILD files.
 Keep Gazelle's default full index (or use `-index=all` when updating a subset) for cross-package resolution.
 
 [examples/basic](examples/basic) is a standalone consumer with a library, binary, unit test, and integration test, with no Cargo manifests:
